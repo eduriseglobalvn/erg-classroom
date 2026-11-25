@@ -21,11 +21,12 @@ export const Mark = ({ s }: { s: number }) => (
 export function LockView({ blank, text, warn, app }: { blank: boolean; text: string; warn?: string; app?: string }) {
   // normal lock only: lesson title, (computer, room) and a clock
   const [les, setLes] = useState("");
-  const [info, setInfo] = useState<[string, string]>(["", ""]);
+  const [info, setInfo] = useState<[string, string, string]>(["", "", ""]);
   const [now, setNow] = useState(() => new Date());
+  const [at] = useState(() => new Date()); // when the warning lock came up
   useEffect(() => {
     invoke<{ title: string }>("lesson_state").then((l) => setLes(l.title)).catch(() => {});
-    invoke<[string, string]>("toolbar_info").then(setInfo).catch(() => {});
+    invoke<[string, string, string]>("toolbar_info").then(setInfo).catch(() => {});
     const i = setInterval(() => setNow(new Date()), 10000);
     return () => clearInterval(i);
   }, []);
@@ -33,19 +34,35 @@ export function LockView({ blank, text, warn, app }: { blank: boolean; text: str
   // A system tool gets the yellow screen, a website the red one.
   if (warn) {
     const tool = warn === "tool";
-    const fg = tool ? "#1B1B1B" : "#fff", soft = tool ? "#3A2A00" : "#F3D4D0", edge = tool ? "#1B1B1B" : "#F2B600";
+    const fg = tool ? "#1B1B1B" : "#fff", soft = tool ? "#3A2A00" : "#F3D4D0", label = tool ? "#3A2A00" : "#E0B3AD";
+    // website: yellow/black stripes; program: solid black bars
+    const bar = tool ? "#1B1B1B" : "repeating-linear-gradient(135deg, #F2B600 0 24px, #1B1B1B 24px 48px)";
+    const what = warn === "adult" ? w("Trang web người lớn (18+)", "A website in the group Adult content (18+)") : warn === "word" ? w("Trang có từ khoá bị chặn", "A page with a blocked keyword") : w("Trang web bị chặn", "A blocked website");
+    const when = `${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · ${at.toLocaleDateString()}`;
+    const student = info[2] ? `${info[2]} · ${info[0]}` : info[0];
+    const rows: [string, string][] = tool
+      ? [[w("Chương trình", "Program"), `${text || app} (${app})`], [w("Lý do", "Reason"), w("Công cụ hệ thống có thể dừng hoặc thay đổi phần mềm lớp học, nên bị tắt trong giờ học", "System tools can stop or change the classroom software, so they are off during a lesson")], [w("Lúc", "When"), when], [w("Học sinh", "Student"), student]]
+      : [[w("Nội dung", "What"), `${what}${text ? ` · ${text}` : ""}`], [w("Chương trình", "Program"), app ?? ""], [w("Lúc", "When"), when], [w("Học sinh", "Student"), student]];
     return (
-      <div role="alertdialog" aria-label={w("Truy cập trái phép", "Unauthorised access")} style={{ height: "100%", display: "grid", placeItems: "center", background: tool ? "#F2B600" : "#4A120D", color: fg, userSelect: "none", cursor: "none", borderTop: `8px solid ${edge}`, borderBottom: `8px solid ${edge}`, boxSizing: "border-box" }}>
-        <div style={{ textAlign: "center", maxWidth: 760, padding: 24 }}>
-          <svg viewBox="0 0 64 64" width="84" height="84" aria-hidden="true"><path d="M32 6l28 50H4z" fill={edge} /><path d="M32 24v16M32 47h.01" fill="none" stroke={tool ? "#F2B600" : "#1B1B1B"} strokeWidth="5" strokeLinecap="round" /></svg>
-          <Text as="h1" size={900} weight="semibold" block style={{ color: fg, margin: "12px 0" }}>{w("Truy cập trái phép", "Unauthorised access")}</Text>
-          <Text as="p" size={500} block style={{ color: soft }}>
-            {tool ? w("Em đã mở công cụ hệ thống không được phép trong giờ học.", "You opened a system tool that is not allowed in this lesson.") : w("Em đã mở trang web không được phép.", "You opened a website that is not allowed.")} {w("Máy đã bị khoá và giáo viên đã được báo.", "This computer is locked and your teacher has been told.")}
-          </Text>
-          <Text as="p" size={400} block style={{ color: soft, marginTop: 16, padding: "10px 16px", border: "1px solid rgba(128,128,128,.6)", borderRadius: 6, background: "rgba(0,0,0,.14)", overflowWrap: "anywhere" }}>
-            {tool ? <>{w("Chương trình", "Program")}: <b>{text || app}</b> ({app})<br />{w("Lý do: công cụ hệ thống bị cấm trong giờ học", "Reason: system tools are not allowed during the lesson")}</> : text}
-          </Text>
-          <Text as="p" size={400} block style={{ color: soft, marginTop: 16 }}>{w("Chỉ giáo viên mới mở khoá được máy này. Hãy giơ tay và chờ.", "Only your teacher can unlock this computer. Raise your hand and wait.")}</Text>
+      <div role="alertdialog" aria-label={tool ? w("Chương trình không được phép", "Program not allowed") : w("Truy cập trái phép", "Unauthorised access")} style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, boxSizing: "border-box", background: tool ? "#F2B600" : "#4A120D", color: fg, userSelect: "none", cursor: "none", textAlign: "center" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 8, background: bar }} />
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 8, background: bar }} />
+        <svg viewBox="0 0 64 64" width="84" height="84" aria-hidden="true"><path d="M32 6l28 50H4z" fill={tool ? "#1B1B1B" : "#F2B600"} /><path d="M32 24v16M32 47h.01" fill="none" stroke={tool ? "#F2B600" : "#1B1B1B"} strokeWidth="5" strokeLinecap="round" /></svg>
+        <span style={{ fontSize: 34, fontWeight: 600, lineHeight: "42px" }}>{tool ? w("Chương trình không được phép", "Program not allowed") : w("Truy cập trái phép", "Unauthorised access")}</span>
+        <span style={{ fontSize: 17, lineHeight: "26px", maxWidth: 760, color: soft }}>
+          {tool ? w("Em đã mở một chương trình không được phép trong giờ học. Máy đã bị khoá và giáo viên đã được báo.", "You opened a program that is not allowed in this lesson. This computer is locked and your teacher has been told.")
+            : w("Em đã mở nội dung không được phép trong giờ học. Nội dung đó đã bị đóng, máy bị khoá và giáo viên đã được báo.", "You opened something that is not allowed in this lesson. It was closed, this computer is locked, and your teacher has been told.")}
+        </span>
+        <div style={{ width: tool ? 640 : 560, maxWidth: "100%", marginTop: 8, border: `1px solid ${tool ? "rgba(0,0,0,.35)" : "rgba(255,255,255,.22)"}`, borderRadius: 6, background: tool ? "rgba(255,255,255,.35)" : "rgba(0,0,0,.22)", textAlign: "left" }}>
+          {rows.map(([l, v], i) => (
+            <div key={l} style={{ display: "flex", gap: 12, minHeight: 36, alignItems: "center", padding: "6px 16px", boxSizing: "border-box", borderTop: i ? `1px solid ${tool ? "rgba(0,0,0,.12)" : "rgba(255,255,255,.1)"}` : undefined }}>
+              <span style={{ width: 120, flex: "none", color: label }}>{l}</span><span style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <span style={{ marginTop: 6, fontSize: 15, color: soft }}>{w("Chỉ giáo viên mới mở khoá được máy này. Hãy giơ tay và chờ.", "Only your teacher can unlock this computer. Raise your hand and wait.")}</span>
+        <div style={{ position: "absolute", left: 24, right: 24, bottom: 24, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: tool ? "#3A2A00" : "#D9A7A0" }}>
+          <Mark s={18} /><span>ERG Classroom{les ? ` · ${les}` : ""}</span><span style={{ flex: 1 }} /><span>{w("Sự việc này được lưu trong nhật ký buổi học", "This event is saved in the lesson journal")}</span>
         </div>
       </div>
     );

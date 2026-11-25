@@ -19,4 +19,18 @@ export function loadGuard(): GuardLists {
   }
 }
 
-export const saveGuard = (g: GuardLists) => localStorage.setItem(KEY, JSON.stringify(g));
+/** Whole-word match, so "essex" does not hit "sex"; letters with Vietnamese accents count as letters. */
+export const hasWord = (text: string, w: string) =>
+  new RegExp(`(^|[^\\p{L}\\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}\\p{N}])`, "iu").test(text);
+
+/** "Try it" in the block lists: which of the teacher's own entries a page title or address would hit.
+ *  The built-in adult list lives on the student, so it is not checked here. */
+export function tryGuard(text: string, sites: string[], words: string[]): { kind: "site" | "word"; hit: string } | null {
+  const s = text.toLowerCase();
+  const site = sites.find((x) => s.includes(x.replace(/^\*\./, "")));
+  if (site) return { kind: "site", hit: site };
+  const word = words.find((x) => hasWord(s, x));
+  return word ? { kind: "word", hit: word } : null;
+}
+
+export const saveGuard =(g: GuardLists) => localStorage.setItem(KEY, JSON.stringify(g));
