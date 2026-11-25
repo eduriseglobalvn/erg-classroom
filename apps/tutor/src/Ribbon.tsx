@@ -31,6 +31,7 @@ export type AppCtl = {
   openWeb: () => void;
   /** show the Assessments pane; open the Settings / Web rules dialogs */
   openAssess: () => void; settings: () => void; rules: () => void;
+  shortcuts: () => void; timetable: () => void; about: () => void;
   help: { count: number; on: boolean; toggle: () => void };
 };
 
@@ -189,6 +190,9 @@ export function useCommands(app: AppCtl) {
     // assessment / planning
     assess: { icon: <ClipboardTaskListLtr24Regular />, title: t("Đánh giá…"), desc: t("Bài kiểm tra, bài đang làm và điểm từng học sinh"), run: app.openAssess },
     settings: { icon: <Settings24Regular />, title: t("Cài đặt…"), run: app.settings },
+    shortcuts: { title: t("Phím tắt"), run: app.shortcuts },
+    timetable: { icon: <Calendar24Regular />, title: t("Thời khoá biểu…"), desc: t("Tên bài tự điền khi tới giờ mỗi tiết"), run: app.timetable },
+    about: { title: t("Giới thiệu ERG Classroom"), run: app.about },
     design: { icon: <DocumentEdit24Regular />, title: t("Soạn đề kiểm tra…"), desc: t("Tạo đề trắc nghiệm, có trộn câu"), run: A.design },
     giveTest: { icon: <Send24Regular />, title: t("Giao bài kiểm tra (file JSON)…"), run: A.giveTest },
     finishTest: { icon: <Checkmark24Regular />, title: t("Kết thúc và chấm điểm…"), desc: t("Thu bài, chấm điểm và lưu kết quả CSV"), run: A.finishTest },
@@ -235,10 +239,10 @@ export function useCommands(app: AppCtl) {
     { label: t("Xem"), items: [c.thumbs, c.icons, c.details, "-", c.lesson, c.detail, "-", c.zoom, c.helpFilter] },
     { label: t("Giám sát"), items: [sub.web, sub.apps, c.keywords, sub.print, sub.usb, sub.sound, sub.protect, "-", c.studentBar, c.scan, c.record, c.keys] },
     { label: t("Sơ đồ"), items: [c.autoFit, c.autoArrange, c.showUser] },
-    { label: t("Kế hoạch"), items: [c.plan, c.wizard, "-", c.assess, c.design, c.giveTest, c.finishTest] },
+    { label: t("Kế hoạch"), items: [c.plan, c.timetable, c.wizard, "-", c.assess, c.design, c.giveTest, c.finishTest] },
     { label: t("Nhật ký"), items: [c.journal, c.journalHtml, c.attendance] },
     { label: t("Cửa sổ"), items: [c.detail, "-", c.whiteboard, c.board, c.annotate] },
-    { label: t("Trợ giúp"), items: [c.lang, c.helpFilter, "-", c.settings] },
+    { label: t("Trợ giúp"), items: [c.shortcuts, c.lang, c.helpFilter, "-", c.settings, c.about] },
   ];
   return { c, app, node, menus, webItems, appItems, power, sub, A, t };
 }

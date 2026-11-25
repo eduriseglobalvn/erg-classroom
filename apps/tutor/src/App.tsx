@@ -14,6 +14,7 @@ import { type Student, useClass } from "./store";
 import { Ribbon, useCommands } from "./Ribbon";
 import { SendWork, WebPane } from "./Panes";
 import { AlertsPanel, AssessPane, Settings, WebRules } from "./Panes2";
+import { About, KEYS, Shortcuts, Timetable, keyName, useTimetable } from "./Panes3";
 import { MenuBar, MenuPop } from "./MenuBar";
 import { ordered, useLayout } from "./layout";
 import { Wall } from "./Wall";
@@ -201,6 +202,7 @@ export function App() {
   const [pane, setPane] = useState<"class" | "web" | "assess">("class");
   const [rulesOpen, setRulesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [extra, setExtra] = useState<null | "shortcuts" | "timetable" | "about">(null);
   const [webAllowDlg, askWebAllow] = useAsk("Allow only these websites (comma separated)", "school.edu.vn, wikipedia.org", (t) => send({ SetWebPolicy: { mode: "AllowListOnly", list: items(t) } }));
   const [webBlockDlg, askWebBlock] = useAsk("Block these websites (comma separated)", "facebook.com, youtube.com", (t) => send({ SetWebPolicy: { mode: "BlockList", list: items(t) } }));
   const [appBlockDlg, askAppBlock] = useAsk("Block applications (.exe file names)", "game.exe, chrome.exe", (t) => send({ SetAppPolicy: { mode: "BlockList", list: items(t) } }));
@@ -210,8 +212,27 @@ export function App() {
     ask: { link: askLink, msg: askMsg, chat: askChat, poll: askPoll, webAllow: askWebAllow, webBlock: askWebBlock, guard: () => setGuardOpen(true), appBlock: askAppBlock, appAllow: askAppAllow, work: () => setWorkOpen(true) },
     openWeb: () => setPane("web"),
     openAssess: () => setPane("assess"), settings: () => setSettingsOpen(true), rules: () => setRulesOpen(true),
+    shortcuts: () => setExtra("shortcuts"), timetable: () => setExtra("timetable"), about: () => setExtra("about"),
     help: { count: helpCount, on: helpTab, toggle: () => { setHelpTab(!helpTab); lay.setFilter(null); } },
   });
+
+  useTimetable(setNote);
+  // ---- keyboard shortcuts (the Shortcuts dialog lists the same KEYS); not while typing or in a dialog
+  const keyCmds = useRef(cmds.c);
+  keyCmds.current = cmds.c;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (e.altKey || el.closest("input, textarea, select, [contenteditable=true], [role=dialog], [role=menu]")) return;
+      const k = KEYS.find(([, name]) => name === keyName(e));
+      const c = k && (keyCmds.current as Record<string, { run: () => unknown; off?: boolean }>)[k[2]];
+      if (!c || c.off) return;
+      e.preventDefault();
+      void c.run();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // ---- thumbnail wall sizing: fixed slider size, or Auto-fit so every tile is visible without scrolling
   const wallRef = useRef<HTMLDivElement>(null);
@@ -311,6 +332,9 @@ export function App() {
       {workOpen && <SendWork onClose={() => setWorkOpen(false)} say={setNote} fail={setErr} />}
       {rulesOpen && <WebRules onClose={() => setRulesOpen(false)} onGuard={() => setGuardOpen(true)} say={setNote} fail={setErr} />}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} fail={setErr} />}
+      {extra === "shortcuts" && <Shortcuts onClose={() => setExtra(null)} />}
+      {extra === "timetable" && <Timetable onClose={() => setExtra(null)} say={setNote} />}
+      {extra === "about" && <About onClose={() => setExtra(null)} say={setNote} />}
 
       <div className={s.title}>
         <div className={s.titleSide}>
