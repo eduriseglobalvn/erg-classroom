@@ -12,6 +12,8 @@ import { JournalDialog } from "./JournalDialog";
 import { Bar, BLUE, D, DlgHead, FileDist, GREEN, GREY, RED, Status, mut, td, th } from "./FileDist";
 import { inventoryCsv } from "./inventory";
 import { useUi } from "./uistate";
+import { alertWhat, unlockAlert, useAlerts, useTest } from "./Panes2";
+import { tr, useLang } from "./i18n";
 
 type Send = (cmd: unknown) => Promise<number>;
 type DirEntry = { name: string; is_dir: boolean; size: number; modified_s: number };
@@ -61,7 +63,8 @@ export function useExtras(send: Send, say: (s: string) => void, fail: (s: string
   const [dist, setDist] = useState(false);
   const [bar, setBar] = useState(true); // students show their toolbar unless the teacher turns it off
   const [rc, setRc] = useState(false);
-  const [viols, setViols] = useState<{ id: string; kind: string; title: string; at: number }[]>([]); // open violation alerts, newest three
+  const alerts = useAlerts((s) => s.list);
+  const viols = alerts.filter((a) => a.state === "open").slice(-3); // unanswered alerts, newest three
   const run =(p: Promise<unknown>) => p.catch((e) => fail(String(e)));
   const hosts = () => Object.values(students).filter((s) => selected.size === 0 || selected.has(s.id)).map((s) => s.hostname);
 
@@ -85,8 +88,8 @@ export function useExtras(send: Send, say: (s: string) => void, fail: (s: string
     const who = (id: string) => students[id]?.user || students[id]?.hostname || "Student";
     const subs = [
       listen<{ id: string; word: string }>("student-keyword", (e) => say(`${who(e.payload.id)} typed keyword: ${e.payload.word}`)),
-      listen<{ id: string; kind: string; app: string; title: string }>("student-violation", (e) => setViols((l) => [...l.slice(-2), { ...e.payload, at: Date.now() }])),
-      listen<{ id: string; kind: string; app: string; title: string }>("student-violation", (e) => say(`⚠ ${who(e.payload.id)} (${students[e.payload.id]?.hostname ?? ""}) – unauthorised access, ${e.payload.kind === "tool" ? "system tool" : "adult website"}: ${e.payload.title.slice(0, 120)}. The computer is locked with a warning; Unlock it to see what is open.`)),
+      listen<{ id: string; kind: string; app: string; title: string }>("student-violation", (e) => useAlerts.getState().add(e.payload)),
+      listen<{ id: string; kind: string; app: string; title: string }>("student-violation", (e) => say(`⚠ ${who(e.payload.id)} (${students[e.payload.id]?.hostname ?? ""}) – ${tr(useLang.getState().lang, alertWhat(e.payload.kind))}: ${e.payload.title.slice(0, 120)}. The computer is locked with a warning; Unlock it to see what is open.`)),
       listen<{ id: string; text: string; question: number }>("student-hand", (e) => say(`${who(e.payload.id)} ${e.payload.text ? "answered: " + e.payload.text : "raised a hand"}`)),
       listen<{ id: string; name: string; class: string }>("student-register", (e) => say(`Present: ${e.payload.name} (${e.payload.class})`)),
       listen<{ id: string; path: string }>("student-collected", (e) => say(`Collected: ${e.payload.path}`)),
@@ -115,14 +118,13 @@ export function useExtras(send: Send, say: (s: string) => void, fail: (s: string
   }, [req]);
 
   // ---- tests
-  const test = useRef<{ id: number; paper: string; results: Record<string, string> } | null>(null);
   useEffect(() => {
     const un = listen<{ id: string; test: number; answers: string }>("student-test-done", (e) => {
-      if (test.current && test.current.id === e.payload.test) test.current.results[e.payload.id] = e.payload.answers;
+      useTest.getState().handIn(e.payload.id, e.payload.test, e.payload.answers).catch((err) => fail(String(err)));
       say(`${students[e.payload.id]?.hostname ?? "Student"} handed in the test`);
     });
     return () => void un.then((f) => f());
-  }, [say, students]);
+  }, [say, fail, students]);
 
   const L = () => useLayout.getState();
   const byHost = () => Object.fromEntries(Object.values(students).map((s) => [s.hostname, s.id]));
@@ -216,8 +218,8 @@ export function useExtras(send: Send, say: (s: string) => void, fail: (s: string
     kill: () => setDlg("kill"),
     // assessment
     design: () => setDlg("design"),
-    giveTest: () => run(startTest(send, test, say)),
-    finishTest: () => run(finishTest(send, test, students, say)),
+    giveTest: () => run(startTest(say)),
+    finishTest: () => run(finishTest(say)),
     ask: () => setDlg("ask"),
     teams: () => setDlg("teams"),
     random: () => pickRandom(students, selected, say),
@@ -257,20 +259,20 @@ export function useExtras(send: Send, say: (s: string) => void, fail: (s: string
       {viols.length > 0 && (
         <div style={{ position: "fixed", top: 118, right: 16, zIndex: 1000001, display: "grid", gap: 8, width: 400, maxWidth: "calc(100vw - 32px)" }}>
           {viols.map((v) => {
-            const s = students[v.id], close = () => setViols((l) => l.filter((x) => x !== v));
+            const s = students[v.id], close = () => useAlerts.getState().mark(v.key, "kept");
             return (
-              <div key={v.at + v.id} role="alert" style={{ borderRadius: 8, overflow: "hidden", border: `1px solid ${RED}`, background: tokens.colorNeutralBackground1, boxShadow: tokens.shadow28 }}>
+              <div key={v.key} role="alert" style={{ borderRadius: 8, overflow: "hidden", border: `1px solid ${RED}`, background: tokens.colorNeutralBackground1, boxShadow: tokens.shadow28 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", background: "#C42B1C", color: "#fff", fontWeight: 600 }}>
                   <Warning16Regular /><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Unauthorised access · {s?.hostname}</span>
                   <span style={{ fontSize: 12, fontWeight: 400 }}>{new Date(v.at).toLocaleTimeString()}</span>
                 </div>
                 <div style={{ display: "grid", gap: 6, padding: "12px 16px" }}>
-                  <span><b>{s?.user || s?.hostname || "Student"}</b> opened {v.kind === "tool" ? "a system tool" : "an adult website"}: <b style={{ wordBreak: "break-word" }}>{v.title.slice(0, 120)}</b></span>
+                  <span><b>{s?.user || s?.hostname || "Student"}</b> – {tr(useLang.getState().lang, alertWhat(v.kind))}: <b style={{ wordBreak: "break-word" }}>{v.title.slice(0, 120)}</b></span>
                   <span style={{ fontSize: 12, color: mut }}>The computer is locked with a warning. It stays locked until you unlock it; unlock it to see what is open.</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "10px 16px", background: tokens.colorNeutralBackground2, borderTop: `1px solid ${tokens.colorNeutralStroke2}` }}>
                   <Button onClick={close}>Keep locked</Button>
-                  <Button appearance="primary" onClick={() => { run(invoke("send_command", { ids: [v.id], cmd: "Unlock" })); close(); }}>Unlock</Button>
+                  <Button appearance="primary" onClick={() => run(unlockAlert(v))}>Unlock</Button>
                 </div>
               </div>
             );
@@ -510,30 +512,21 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
   );
 }
 
-async function startTest(send: Send, ref: React.MutableRefObject<{ id: number; paper: string; results: Record<string, string> } | null>, say: (s: string) => void) {
+// the ribbon path; the Assessments pane does the same with its own controls
+async function startTest(say: (s: string) => void) {
   const file = await open({ multiple: false, filters: [{ name: "Test", extensions: ["json"] }] });
   if (!file || Array.isArray(file)) return;
-  const paper = await invoke<string>("load_text", { path: file });
-  const id = Date.now() % 2 ** 31;
-  const forStudents = await invoke<string>("make_student_paper", { paper, seed: id });
-  const minutes = Number(window.prompt("Time limit (minutes, 0 = no limit)", "15") ?? "15") || 0;
-  ref.current = { id, paper, results: {} };
-  const n = await send({ StartTest: { id, json: forStudents, seconds: minutes * 60 } });
-  say(`Test sent to ${n} PC(s)`);
+  await useTest.getState().addTest(file);
+  const minutes = Math.max(0, Math.min(600, Number(window.prompt("Time limit (minutes, 0 = no limit)", "15") ?? "15") || 0));
+  say(`Test sent to ${await useTest.getState().start(file, minutes)} PC(s)`);
 }
 
-async function finishTest(send: Send, ref: React.MutableRefObject<{ id: number; paper: string; results: Record<string, string> } | null>, students: Record<string, { hostname: string; user: string }>, say: (s: string) => void) {
-  const t = ref.current;
-  if (!t) return say("No test is running");
-  await send("StopTest");
-  const rows: [string, unknown][] = [];
-  for (const [sid, answers] of Object.entries(t.results)) {
-    const score = await invoke("grade_test", { paper: t.paper, answers, seed: t.id });
-    rows.push([`${students[sid]?.user || students[sid]?.hostname || sid}`, score]);
-  }
-  const csv = await invoke<string>("test_report_csv", { rows });
-  await saveText("results.csv", csv);
-  say(`Marked ${rows.length} test(s)`);
+async function finishTest(say: (s: string) => void) {
+  const t = useTest.getState();
+  if (!t.run || t.run.done) return say("No test is running");
+  await t.finish();
+  say(`Marked ${Object.keys(t.run.scores).length} test(s)`);
+  await t.exportCsv();
 }
 
 /** Send an mp4/webm to the class, then open it on every student; playback is then controlled from the menu. */

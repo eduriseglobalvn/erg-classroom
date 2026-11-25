@@ -412,6 +412,9 @@ async fn start_roster(app: AppHandle, state: State<'_, AppState>) -> Result<(), 
                 RosterEvent::Student { id, event: erg_proto::Event::Power { percent, ac, wifi_signal } } => {
                     let _ = app.emit("student-power", serde_json::json!({ "id": id.to_string(), "percent": percent, "ac": ac, "wifi": wifi_signal }));
                 }
+                RosterEvent::Student { id, event: erg_proto::Event::Status { fg_app, fg_title, .. } } => {
+                    let _ = app.emit("student-status", serde_json::json!({ "id": id.to_string(), "app": fg_app, "title": fg_title }));
+                }
                 RosterEvent::Student { id, event: erg_proto::Event::Keyword { word } } => {
                     log("keyword", &id.to_string(), &word);
                     let _ = app.emit("student-keyword", serde_json::json!({ "id": id.to_string(), "word": word }));

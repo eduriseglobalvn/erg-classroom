@@ -1,6 +1,6 @@
 import { makeStyles, tokens } from "@fluentui/react-components";
 import {
-  Globe24Regular, GlobeProhibited24Regular, AppsList24Regular, Play24Filled, Stop24Filled, LockClosed24Regular, LockOpen24Regular, Square24Filled, Chat24Regular,
+  Globe24Regular, GlobeProhibited24Regular, Settings24Regular, ShieldTask24Regular, ClipboardTaskListLtr24Regular, AppsList24Regular, Play24Filled, Stop24Filled, LockClosed24Regular, LockOpen24Regular, Square24Filled, Chat24Regular,
   ChatMultiple24Regular, Comment24Regular, Power24Regular, Link24Regular, Send24Regular, ArrowDownload24Regular, HandRight24Regular, Poll24Regular, Info24Regular,
   PeopleTeam24Regular, PeopleCommunity24Regular, PersonAdd24Regular, PersonStar24Regular, Key24Regular, KeyReset24Regular, Dismiss24Regular, Clock24Regular,
   ClipboardCheckmark24Regular, DocumentTable24Regular, HardDrive24Regular, ArrowShuffle24Regular, History24Regular, DocumentArrowDown24Regular, Window24Regular,
@@ -16,7 +16,8 @@ import { useClass } from "./store";
 import { useExtras } from "./Extras";
 import { useLang, useT } from "./i18n";
 import { useUi } from "./uistate";
-import { type Chip, Ico, type Item, RBtn, RDrop, RGroup, RSplit } from "./ui";
+import { type Chip, Ico, type Item, Pop, RBtn, RDrop, RGroup, RSplit } from "./ui";
+import { QuickLaunch } from "./Panes";
 
 type Cmd = Exclude<Item, "-">;
 export type Menu = { label: string; items: Item[] };
@@ -24,8 +25,12 @@ export type Menu = { label: string; items: Item[] };
 /** What App owns: the small prompt dialogs, the machine-info dialog and the help filter. */
 export type AppCtl = {
   say: (s: string) => void; fail: (s: string) => void; run: (p: Promise<unknown>) => void;
-  ask: { link: () => void; msg: () => void; chat: () => void; poll: () => void; webAllow: () => void; webBlock: () => void; guard: () => void; appBlock: () => void; appAllow: () => void };
+  ask: { link: () => void; msg: () => void; chat: () => void; poll: () => void; webAllow: () => void; webBlock: () => void; guard: () => void; appBlock: () => void; appAllow: () => void; work: () => void };
   info: () => void;
+  /** show the Web access pane in place of the wall */
+  openWeb: () => void;
+  /** show the Assessments pane; open the Settings / Web rules dialogs */
+  openAssess: () => void; settings: () => void; rules: () => void;
   help: { count: number; on: boolean; toggle: () => void };
 };
 
@@ -58,6 +63,7 @@ const ICONS = {
   help: [RED, CIRC + "M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5.6 5.6l3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6", CIRC],
   bar: [BLUE, "M3 5h18v14H3zM3 9.5h18M6 7.3h.01M8.6 7.3h.01", "M3 5h18v4.5H3z"],
   test: [GREEN, "M6 3h9l4 4v14H6zM14 3v5h5M9 14l2 2 4-4", "M6 3h9l4 4v14H6z"],
+  launch: [AMBER, "M13 3 5 13h6l-1 8 8-10h-6z", "M13 3 5 13h6l-1 8 8-10h-6z"],
   plans: [TEAL, "M4 6h16v14H4zM4 10h16M8 4v4M16 4v4M8 14h3", "M4 6h16v4H4z"],
 } satisfies Record<string, [string, string, string]>;
 const ico = (k: keyof typeof ICONS) => <Ico color={ICONS[k][0]} d={ICONS[k][1]} f={ICONS[k][2]} />;
@@ -119,6 +125,7 @@ export function useCommands(app: AppCtl) {
     remote: { icon: <Eye24Regular />, title: t("Xem / điều khiển"), desc: t("Xem và điều khiển máy học sinh đang chọn"), run: A.remote, off: need1 },
     // files
     sendFile: { icon: <Send24Regular />, title: t("Gửi file"), desc: t("Gửi một tệp tới máy đang chọn hoặc cả lớp"), run: () => sendFile().then((r) => r && app.say(r), (e) => app.fail(String(e))) },
+    sendWork: { icon: <Send24Regular />, title: t("Gửi bài…"), desc: t("Gửi một bộ tệp bài tập tới cả lớp, nhóm hoặc máy đang chọn"), run: app.ask.work, off: needAny },
     collect: { icon: <ArrowDownload24Regular />, title: t("Thu bài"), desc: t("Thu tệp bài làm từ máy học sinh"), run: A.collect },
     distribute: { icon: <Folder24Regular />, title: "File Distribution…", desc: "Copy files from this computer to the selected PCs or the whole class", run: A.distribute, off: needAny },
     files: { icon: <Folder24Regular />, title: t("Quản lý tệp máy đang chọn…"), desc: t("Duyệt, đổi tên, xoá tệp trên máy học sinh"), run: A.files, off: need1 },
@@ -146,6 +153,8 @@ export function useCommands(app: AppCtl) {
         setTimeout(() => { cmd("BlockAll").then(() => app.say("10 minutes are up: Internet blocked again"), (e) => app.fail(String(e))); }, 10 * 60 * 1000);
       },
     },
+    webPane: { icon: <Globe24Regular />, title: t("Truy cập web…"), desc: t("Xem trang mỗi học sinh đang mở, sửa danh sách duyệt / hạn chế"), run: app.openWeb },
+    webRules: { icon: <ShieldTask24Regular />, title: t("Quy tắc web và Internet…"), desc: t("Chế độ web, danh sách trang và điều gì xảy ra khi vi phạm"), run: app.rules },
     webAllow: { icon: <CheckmarkCircle24Regular />, title: t("Chỉ cho phép các trang…"), run: app.ask.webAllow },
     webBlock: { icon: <Prohibited24Regular />, title: t("Chặn các trang…"), run: app.ask.webBlock },
     webGuard: { icon: <Prohibited24Regular />, title: t("Web và từ khoá bị chặn…"), desc: t("Mở phải là khoá máy và báo giáo viên"), run: app.ask.guard },
@@ -178,6 +187,8 @@ export function useCommands(app: AppCtl) {
     link: { icon: <Link24Regular />, title: t("Mở link"), desc: t("Mở một trang web trên máy học sinh"), run: app.ask.link },
     helpFilter: { icon: <HandRight24Regular />, title: `${t("Xin trợ giúp")} (${app.help.count})`, run: app.help.toggle, on: app.help.on },
     // assessment / planning
+    assess: { icon: <ClipboardTaskListLtr24Regular />, title: t("Đánh giá…"), desc: t("Bài kiểm tra, bài đang làm và điểm từng học sinh"), run: app.openAssess },
+    settings: { icon: <Settings24Regular />, title: t("Cài đặt…"), run: app.settings },
     design: { icon: <DocumentEdit24Regular />, title: t("Soạn đề kiểm tra…"), desc: t("Tạo đề trắc nghiệm, có trộn câu"), run: A.design },
     giveTest: { icon: <Send24Regular />, title: t("Giao bài kiểm tra (file JSON)…"), run: A.giveTest },
     finishTest: { icon: <Checkmark24Regular />, title: t("Kết thúc và chấm điểm…"), desc: t("Thu bài, chấm điểm và lưu kết quả CSV"), run: A.finishTest },
@@ -201,7 +212,7 @@ export function useCommands(app: AppCtl) {
     lang: { icon: <Translate24Regular />, title: lang === "vi" ? "English" : "Tiếng Việt", run: toggleLang },
   } satisfies Record<string, Cmd>;
 
-  const webItems: Item[] = [c.webOpen, c.webAll, c.webTemp, "-", c.webAllow, c.webBlock, "-", c.webGuard];
+  const webItems: Item[] = [c.webPane, c.webRules, "-", c.webOpen, c.webAll, c.webTemp, "-", c.webAllow, c.webBlock, "-", c.webGuard];
   const appItems: Item[] = [c.appOpen, c.appBlock, c.appAllow, "-", c.kill];
   const power: Item[] = [c.wake, c.shutdown, c.reboot, c.logoff];
   // submenus of the menu bar and of the student right-click menu
@@ -217,17 +228,17 @@ export function useCommands(app: AppCtl) {
 
   // the eleven menus of the v2 title bar; only commands that exist are listed
   const menus: Menu[] = [
-    { label: t("Phòng học"), items: [c.wizard, c.refresh, c.endClass, "-", c.wake, "-", c.phoneOn, c.phoneOff] },
-    { label: t("Lớp học"), items: [c.selectAll, c.selectNone, "-", c.lock, c.unlock, c.blank, "-", c.show, c.msg, c.sendFile, c.collect, "-", c.shutdown, c.reboot, c.logoff] },
+    { label: t("Phòng học"), items: [c.wizard, c.refresh, c.endClass, "-", c.wake, "-", c.phoneOn, c.phoneOff, "-", c.settings] },
+    { label: t("Lớp học"), items: [c.selectAll, c.selectNone, "-", c.lock, c.unlock, c.blank, "-", c.show, c.msg, c.sendWork, c.sendFile, c.collect, "-", c.shutdown, c.reboot, c.logoff] },
     { label: t("Học sinh"), items: [c.remote, c.chat, c.msg, "-", c.files, c.info, c.shell, "-", c.reward, c.random] },
     { label: t("Nhóm"), items: [c.assignGroup, c.autoGroup, c.clearGroups, "-", c.setLeader, c.selectLeaders, c.grantLeaders, c.revokeLeaders, "-", c.showGroup, c.teams] },
     { label: t("Xem"), items: [c.thumbs, c.icons, c.details, "-", c.lesson, c.detail, "-", c.zoom, c.helpFilter] },
     { label: t("Giám sát"), items: [sub.web, sub.apps, c.keywords, sub.print, sub.usb, sub.sound, sub.protect, "-", c.studentBar, c.scan, c.record, c.keys] },
     { label: t("Sơ đồ"), items: [c.autoFit, c.autoArrange, c.showUser] },
-    { label: t("Kế hoạch"), items: [c.plan, c.wizard, "-", c.design, c.giveTest, c.finishTest] },
+    { label: t("Kế hoạch"), items: [c.plan, c.wizard, "-", c.assess, c.design, c.giveTest, c.finishTest] },
     { label: t("Nhật ký"), items: [c.journal, c.journalHtml, c.attendance] },
     { label: t("Cửa sổ"), items: [c.detail, "-", c.whiteboard, c.board, c.annotate] },
-    { label: t("Trợ giúp"), items: [c.lang, c.helpFilter] },
+    { label: t("Trợ giúp"), items: [c.lang, c.helpFilter, "-", c.settings] },
   ];
   return { c, app, node, menus, webItems, appItems, power, sub, A, t };
 }
@@ -261,7 +272,7 @@ export function Ribbon({ cmds }: { cmds: Commands }) {
       </RGroup>
       <RGroup caption={t("Tệp")}>
         <RDrop icon={ico("files")} label={t("Truyền tệp")} width={340} items={[c.distribute, c.files, c.deploy, "-", c.clipClear, c.clipGet]} />
-        <RDrop icon={ico("work")} label="Send / Collect" items={[c.sendFile, c.collect]} />
+        <RDrop icon={ico("work")} label="Send / Collect" items={[c.sendWork, c.sendFile, c.collect]} />
       </RGroup>
       <RGroup caption={t("Màn hình")}>
         {btn(c.lock, c.lock.title, ico("lock"))}{btn(c.unlock, c.unlock.title, ico("unlock"))}{btn(c.blank, "Blank All", ico("blank"))}
@@ -277,6 +288,9 @@ export function Ribbon({ cmds }: { cmds: Commands }) {
       </RGroup>
       <RGroup caption="Student">
         {btn(c.studentBar, "Student Toolbar", ico("bar"))}
+        <Pop label="Quick Launch" width={432} trigger={(open) => <RBtn icon={ico("launch")} menu open={open} aria-haspopup="dialog" aria-expanded={open}>Quick Launch</RBtn>}>
+          {(close) => <QuickLaunch close={close} say={app.say} fail={app.fail} />}
+        </Pop>
       </RGroup>
       <RGroup caption={t("Đánh giá")}>
         <RDrop icon={ico("test")} label="Assessments" items={[c.design, c.giveTest, c.finishTest, "-", c.teams, c.reward]} />

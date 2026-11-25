@@ -118,10 +118,39 @@ impl Agent {
     }
 }
 
+/// "%USERPROFILE%\\Documents" -> "C:\\Users\\an\\Documents"; an unknown %NAME% stays as it is.
+fn expand_env(s: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(a) = rest.find('%') {
+        out.push_str(&rest[..a]);
+        let tail = &rest[a + 1..];
+        match tail.find('%').and_then(|b| std::env::var(&tail[..b]).ok().map(|v| (b, v))) {
+            Some((b, v)) => { out.push_str(&v); rest = &tail[b + 1..]; }
+            None => { out.push('%'); rest = tail; }
+        }
+    }
+    out + rest
+}
+
 impl Executor for Agent {
     fn open_url(&self, url: &str) {
         // `url` is validated http(s) without whitespace and passed as one argv element (no shell).
         let _ = Proc::new("rundll32.exe").arg("url.dll,FileProtocolHandler").arg(url).spawn();
+    }
+
+    fn run_app(&self, path: &str, args: &[String]) {
+        let path = expand_env(path);
+        // a program with its full path starts directly (no shell). Anything else goes through ShellExecute: a document or
+        // folder opens with its program, and a bare "winword.exe" is found through App Paths (its arguments are dropped).
+        let r = if path.to_ascii_lowercase().ends_with(".exe") && path.contains('\\') {
+            Proc::new(&path).args(args).spawn()
+        } else {
+            Proc::new("rundll32.exe").arg("url.dll,FileProtocolHandler").arg(&path).spawn()
+        };
+        if let Err(e) = r {
+            eprintln!("cannot start {path}: {e}");
+        }
     }
 
     fn poll(&self, id: u32, question: &str, options: &[String]) {
@@ -613,6 +642,8 @@ fn main() {
                     let me = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase())).unwrap_or_default();
                     let mut tab: (String, Option<String>) = Default::default(); // (title, address) of the browser tab last looked at
                     let mut last = String::new(); // the window already reported: after Unlock it is in front again and must not lock again
+                    let mut shown = (String::new(), String::new()); // what the Tutor was last told is in front
+                    let user = std::env::var("USERNAME").unwrap_or_default();
                     loop {
                         std::thread::sleep(std::time::Duration::from_secs(1));
                         let Some((exe, title)) = erg_sysops::foreground() else { continue };
@@ -624,6 +655,11 @@ fn main() {
                         } else {
                             None
                         };
+                        let front = (exe.clone(), address.and_then(erg_student_core::guard::host_of).unwrap_or_else(|| title.clone()));
+                        if front != shown {
+                            st.status(&user, &front.0, &front.1);
+                            shown = front;
+                        }
                         let kind = erg_student_core::guard::check(&exe, &title, address, &ag.blocklist.lock().expect("blocklist lock"));
                         match kind {
                             Some(kind) if title != last => {

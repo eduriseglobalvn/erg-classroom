@@ -6,12 +6,14 @@ import {
   MessageBar, MessageBarActions, MessageBarBody, Select, Slider, Text, makeStyles, mergeClasses, shorthands, tokens,
 } from "@fluentui/react-components";
 import {
-  Desktop24Regular, Desktop20Regular, Add20Regular, ScanCamera20Regular, DocumentEdit20Regular, Board20Regular, Edit20Regular,
+  Desktop24Regular, Desktop20Regular, Globe20Regular, Add20Regular, ScanCamera20Regular, DocumentEdit20Regular, Board20Regular, Edit20Regular,
   History20Regular, Folder20Regular, PanelRight20Regular, Dismiss16Regular,
 } from "@fluentui/react-icons";
 import { listen } from "@tauri-apps/api/event";
 import { type Student, useClass } from "./store";
 import { Ribbon, useCommands } from "./Ribbon";
+import { SendWork, WebPane } from "./Panes";
+import { AlertsPanel, AssessPane, Settings, WebRules } from "./Panes2";
 import { MenuBar, MenuPop } from "./MenuBar";
 import { ordered, useLayout } from "./layout";
 import { Wall } from "./Wall";
@@ -195,13 +197,19 @@ export function App() {
 
   const items = (t: string) => t.split(/[\s,;]+/).filter(Boolean);
   const [guardOpen, setGuardOpen] = useState(false);
+  const [workOpen, setWorkOpen] = useState(false);
+  const [pane, setPane] = useState<"class" | "web" | "assess">("class");
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [webAllowDlg, askWebAllow] = useAsk("Allow only these websites (comma separated)", "school.edu.vn, wikipedia.org", (t) => send({ SetWebPolicy: { mode: "AllowListOnly", list: items(t) } }));
   const [webBlockDlg, askWebBlock] = useAsk("Block these websites (comma separated)", "facebook.com, youtube.com", (t) => send({ SetWebPolicy: { mode: "BlockList", list: items(t) } }));
   const [appBlockDlg, askAppBlock] = useAsk("Block applications (.exe file names)", "game.exe, chrome.exe", (t) => send({ SetAppPolicy: { mode: "BlockList", list: items(t) } }));
   const [appAllowDlg, askAppAllow] = useAsk("Allow only these applications (.exe file names)", "winword.exe, excel.exe", (t) => send({ SetAppPolicy: { mode: "AllowListOnly", list: items(t) } }));
   const cmds = useCommands({
     say: setNote, fail: setErr, run, info: showInfo,
-    ask: { link: askLink, msg: askMsg, chat: askChat, poll: askPoll, webAllow: askWebAllow, webBlock: askWebBlock, guard: () => setGuardOpen(true), appBlock: askAppBlock, appAllow: askAppAllow },
+    ask: { link: askLink, msg: askMsg, chat: askChat, poll: askPoll, webAllow: askWebAllow, webBlock: askWebBlock, guard: () => setGuardOpen(true), appBlock: askAppBlock, appAllow: askAppAllow, work: () => setWorkOpen(true) },
+    openWeb: () => setPane("web"),
+    openAssess: () => setPane("assess"), settings: () => setSettingsOpen(true), rules: () => setRulesOpen(true),
     help: { count: helpCount, on: helpTab, toggle: () => { setHelpTab(!helpTab); lay.setFilter(null); } },
   });
 
@@ -232,10 +240,11 @@ export function App() {
   const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
   const pick = (st: Student, e: React.MouseEvent) => toggle(st.id, e.ctrlKey || e.metaKey);
   const zoom = (st: Student) => { toggle(st.id, false); ui.request("remote"); };
-  const nav: { k: Req | "class"; icon: React.ReactNode; label: string; off?: boolean }[] = [
+  const nav: { k: Req | "class" | "web" | "assess"; icon: React.ReactNode; label: string; off?: boolean }[] = [
     { k: "class", icon: <Desktop20Regular />, label: t("Màn hình học sinh") },
+    { k: "web", icon: <Globe20Regular />, label: t("Truy cập web") },
     { k: "scan", icon: <ScanCamera20Regular />, label: t("Giám sát") },
-    { k: "design", icon: <DocumentEdit20Regular />, label: "Assessments" },
+    { k: "assess", icon: <DocumentEdit20Regular />, label: t("Đánh giá") },
     { k: "board", icon: <Board20Regular />, label: t("Bảng tương tác") },
     { k: "whiteboard", icon: <Edit20Regular />, label: t("Bảng trắng") },
     { k: "journal", icon: <History20Regular />, label: t("Nhật ký") },
@@ -299,6 +308,9 @@ export function App() {
       </Dialog>
       <GuardDialog open={guardOpen} onClose={() => setGuardOpen(false)} say={setNote} />
       {webAllowDlg}{webBlockDlg}{appBlockDlg}{appAllowDlg}{linkDlg}{msgDlg}{cmds.node}
+      {workOpen && <SendWork onClose={() => setWorkOpen(false)} say={setNote} fail={setErr} />}
+      {rulesOpen && <WebRules onClose={() => setRulesOpen(false)} onGuard={() => setGuardOpen(true)} say={setNote} fail={setErr} />}
+      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} fail={setErr} />}
 
       <div className={s.title}>
         <div className={s.titleSide}>
@@ -326,12 +338,12 @@ export function App() {
       <div className={s.body}>
         <nav className={s.rail} aria-label="Views">
           {nav.map((it) => {
-            const on = it.k === "class";
+            const on = it.k === pane;
             return (
               <Tip key={it.k} label={it.label}>
                 <button type="button" aria-label={it.label} aria-current={on ? "page" : undefined} disabled={it.off}
                   className={mergeClasses(s.railBtn, on && s.railOn)}
-                  onClick={() => { if (it.k === "class") { lay.setFilter(null); setHelpTab(false); } else ui.request(it.k); }}>{it.icon}</button>
+                  onClick={() => { if (it.k === "class") { setPane("class"); lay.setFilter(null); setHelpTab(false); } else if (it.k === "web" || it.k === "assess") setPane(it.k); else ui.request(it.k); }}>{it.icon}</button>
               </Tip>
             );
           })}
@@ -341,7 +353,10 @@ export function App() {
           </Tip>
         </nav>
 
-        <div className={s.main}>
+        {pane === "web" && <WebPane onClose={() => setPane("class")} onLink={askLink} onRules={() => setRulesOpen(true)} say={setNote} fail={setErr} />}
+        {pane === "assess" && <AssessPane onClose={() => setPane("class")} say={setNote} fail={setErr} />}
+        {/* hidden, not unmounted: the wall keeps its size and scroll for when the teacher comes back */}
+        <div className={s.main} style={pane === "class" ? undefined : { display: "none" }}>
           <div className={s.tabs}>
             <div className={s.tabScroll} role="group" aria-label={t("Nhóm")}>
               {tab(!helpTab && lay.filter === null, t("Tất cả"), all.length, () => { lay.setFilter(null); setHelpTab(false); })}
@@ -375,6 +390,7 @@ export function App() {
               onPick={pick} onZoom={zoom} onClear={clear} onSwap={swapSeats}
               onKey={(st, e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(st.id, e.ctrlKey || e.metaKey); } }}
               onTileMenu={(st, e) => { if (!selected.has(st.id)) toggle(st.id, false); setCtx({ x: e.clientX, y: e.clientY }); }} />
+            <AlertsPanel onRules={() => setRulesOpen(true)} fail={setErr} />
 
             {ui.detail && (
               <aside className={s.detail} aria-label={t("Chi tiết")}>

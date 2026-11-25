@@ -18,6 +18,9 @@ pub const MAX_URL_CHARS: usize = 2048;
 /// What a student machine can be asked to do. Every method receives already-validated input.
 pub trait Executor: Send + Sync + 'static {
     fn open_url(&self, url: &str);
+    /// Quick Launch: start a program, or open a document or folder with its default program, in the student's session.
+    /// `path` may hold %VARIABLES% of the student (%USERPROFILE%\Documents).
+    fn run_app(&self, _path: &str, _args: &[String]) {}
     fn message(&self, text: &str, seconds: u16);
     fn lock(&self, blank: bool, text: Option<&str>);
     fn unlock(&self);
@@ -135,6 +138,18 @@ pub fn dispatch(ex: &dyn Executor, cmd: Command) -> bool {
                 && !u.chars().any(|c| c.is_control() || c.is_whitespace());
             if ok {
                 ex.open_url(&u);
+            }
+            ok
+        }
+        // the Room Key already allows Shell and Deploy, so this adds no power; the limits only stop garbage
+        Command::RunApp { path, args } => {
+            let ok = !path.trim().is_empty()
+                && path.len() <= 260
+                && args.len() <= 16
+                && !path.chars().chain(args.iter().flat_map(|a| a.chars())).any(|c| c.is_control())
+                && args.iter().all(|a| a.len() <= 512);
+            if ok {
+                ex.run_app(path.trim(), &args);
             }
             ok
         }
@@ -261,7 +276,6 @@ pub fn dispatch(ex: &dyn Executor, cmd: Command) -> bool {
         | Command::KillProcess(_) | Command::CollectFiles { .. } | Command::Shell(_) => false, // need the connection; handled in `run_with`
         Command::Auth { .. }
         | Command::RequestClipboard
-        | Command::RunApp { .. }
         | Command::RequestThumbnail { .. }
         | Command::WatchScreen { .. }
         | Command::Deploy(_)
@@ -441,6 +455,11 @@ impl Student {
     pub fn violation(&self, kind: &str, app: &str, title: &str) -> bool {
         let cut = |s: &str| s.chars().take(200).collect::<String>();
         self.out.receiver_count() > 0 && self.out.send(Event::Violation { kind: cut(kind), app: cut(app), title: cut(title) }).is_ok()
+    }
+    /// The window in front changed (for a browser `title` is the site's host): the Tutor's Web access view shows it.
+    pub fn status(&self, user: &str, app: &str, title: &str) {
+        let cut = |s: &str| s.chars().take(200).collect::<String>();
+        self.emit(Event::Status { user: cut(user), fg_app: cut(app), fg_title: cut(title), locked: false });
     }
     pub fn power(&self, percent: Option<u8>, ac: bool, wifi_signal: Option<u8>) {
         self.emit(Event::Power { percent: percent.map(|p| p.min(100)), ac, wifi_signal: wifi_signal.map(|p| p.min(100)) });
@@ -710,6 +729,7 @@ mod tests {
     }
     impl Executor for Rec {
         fn open_url(&self, u: &str) { self.log.lock().unwrap().push(format!("url:{u}")) }
+        fn run_app(&self, p: &str, a: &[String]) { self.log.lock().unwrap().push(format!("run:{p}:{}", a.len())) }
         fn message(&self, t: &str, s: u16) { self.log.lock().unwrap().push(format!("msg:{}:{s}", t.chars().count())) }
         fn lock(&self, b: bool, _: Option<&str>) { self.log.lock().unwrap().push(format!("lock:{b}")) }
         fn unlock(&self) { self.log.lock().unwrap().push("unlock".into()) }
@@ -754,6 +774,15 @@ mod tests {
         }
         assert!(dispatch(&r, Command::OpenUrl("https://example.com/a?b=1".into())));
         assert_eq!(r.log.lock().unwrap().as_slice(), ["url:https://example.com/a?b=1"]);
+    }
+
+    #[test]
+    fn run_app_refuses_empty_and_control_characters() {
+        let r = Rec::default();
+        assert!(!dispatch(&r, Command::RunApp { path: "  ".into(), args: vec![] }));
+        assert!(!dispatch(&r, Command::RunApp { path: "a.exe".into(), args: vec!["x\ny".into()] }));
+        assert!(dispatch(&r, Command::RunApp { path: " winword.exe ".into(), args: vec!["/n".into()] }));
+        assert_eq!(r.log.lock().unwrap().as_slice(), ["run:winword.exe:1"]);
     }
 
     #[test]

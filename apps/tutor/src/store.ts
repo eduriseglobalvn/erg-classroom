@@ -21,6 +21,9 @@ export interface Student {
   legacy?: boolean;
   locked?: boolean;
   help?: boolean;
+  /** program in front on the student (exe name) and its window title; for a browser the site's host name */
+  fgApp?: string;
+  fgTitle?: string;
   /** % of Show frames lost in the last stats window; only meaningful while a Show is active */
   showLoss?: number;
   /** data: URL of the latest screen thumbnail */
@@ -117,6 +120,7 @@ export const useClass = create<State>((set, get) => ({
         const p = lossPct(e.payload.recv, e.payload.lost);
         if (p !== null) pending[e.payload.id] = { ...pending[e.payload.id], showLoss: p };
       }),
+      await listen<{ id: string; app: string; title: string }>("student-status", (e) => (pending[e.payload.id] = { ...pending[e.payload.id], fgApp: e.payload.app, fgTitle: e.payload.title })),
       await listen<{ id: string; inv: Inventory }>("student-inventory", (e) => (pending[e.payload.id] = { ...pending[e.payload.id], inventory: e.payload.inv })),
     ];
     await invoke("start_roster");

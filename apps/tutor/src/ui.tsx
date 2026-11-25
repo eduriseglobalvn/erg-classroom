@@ -102,13 +102,13 @@ function Disabled({ off, children }: { off?: string; children: React.ReactElemen
 }
 
 /** Popover with keyboard support: Esc / outside click close it, Tab stays inside, arrow keys move between rows. */
-function Pop({ label, trigger, children, width }: { label: string; trigger: (open: boolean) => React.ReactElement; children: (close: () => void) => ReactNode; width?: number }) {
+export function Pop({ label, trigger, children, width }: { label: string; trigger: (open: boolean) => React.ReactElement; children: (close: () => void) => ReactNode; width?: number }) {
   const s = useStyles();
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={(_, d) => setOpen(d.open)} positioning="below-start" trapFocus withArrow={false}>
       <PopoverTrigger disableButtonEnhancement>{trigger(open)}</PopoverTrigger>
-      <PopoverSurface className={s.surface} style={width !== undefined ? { minWidth: width } : undefined} aria-label={label}>{children(() => setOpen(false))}</PopoverSurface>
+      <PopoverSurface className={s.surface} style={width !== undefined ? { minWidth: width, maxWidth: Math.max(380, width) } : undefined} aria-label={label}>{children(() => setOpen(false))}</PopoverSurface>
     </Popover>
   );
 }

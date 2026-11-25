@@ -36,16 +36,33 @@ export function install() {
           const hostname = i === 41 ? names[0] : `${names[1]}${String(i).padStart(2, "0")}`;
           await emit("student-online", { id, hostname, user: `hs${i}`, room: "Phòng Tin 1", online: true, ...(i % 9 === 3 ? { version: "0.1", outdated: true, legacy: true } : { version: "0.2.0" }) });
           await emit("student-thumb", { id, jpeg: fakeScreen(i) });
+          const site = ["hoc10.vn", "vi.wikipedia.org", "", "olm.vn", "youtube.com", "docs.google.com", "scratch.mit.edu"][i % 7];
+          await emit("student-status", { id, app: site ? "chrome.exe" : "explorer.exe", title: site || "File Explorer" });
         }
         await emit("student-help", { id: "mock-5" });
+        await emit("student-violation", { id: "mock-12", kind: "site", app: "chrome.exe", title: "bad.example" });
         return null;
       }
       if (cmd === "app_version") return "0.2.0";
       if (cmd === "open_releases") return null;
-      if (cmd === "send_command") return (args as { ids: string[] | null }).ids?.length ?? COUNT;
+      if (cmd === "send_command") {
+        const a = args as { ids: string[] | null; cmd: { StartTest?: { id: number } } };
+        const test = a.cmd?.StartTest?.id;
+        if (test) setTimeout(() => ["mock-1", "mock-2", "mock-4"].forEach((id) => emit("student-test-done", { id, test, answers: "[]" })), 1500);
+        return a.ids?.length ?? COUNT;
+      }
+      if (cmd === "make_student_paper") return (args as { paper: string }).paper;
+      if (cmd === "grade_test") return { points: 7, max: 10, per_question: [4, 0, 3] };
+      if (cmd === "load_text" && String((args as { path: string }).path).endsWith(".json"))
+        return JSON.stringify({ title: "Kiểm tra 15 phút · Tin học 8", questions: [
+          { text: "Câu lệnh nào dùng để lặp?", points: 4, kind: { Choice: { options: ["if", "for", "print", "input"], correct: [1] } } },
+          { text: "Python phân biệt chữ hoa và chữ thường.", points: 3, kind: { TrueFalse: { answer: true } } },
+          { text: "Hàm hiển thị ra màn hình là ___", points: 3, kind: { Fill: { accepted: [["print"]] } } },
+        ] });
       if (cmd === "send_file") return [COUNT, 0];
       if (cmd === "local_dir") return ["C:\\Users\\Teacher\\Downloads", [{ name: "Lessons", is_dir: true, size: 0, modified_s: 1795000000 }, { name: "Bai 8 - Cai thien cau lenh.pptx", is_dir: false, size: 965905, modified_s: 1794900000 }, { name: "Bai 9.pptx", is_dir: false, size: 3728349, modified_s: 1794800000 }]];
       if (cmd === "start_show") return COUNT;
+      if (cmd === "load_text") return "violet.vn Bài giảng\nhoc10.vn Sách giáo khoa\nnot a site";
       if (cmd === "plugin:dialog|open") return "C:\\bai1.xlsx";
       return null;
     },
