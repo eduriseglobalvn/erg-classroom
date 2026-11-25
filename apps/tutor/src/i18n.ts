@@ -327,6 +327,8 @@ const EN: Record<string, string> = {
   "Hiện trên màn hình": "Stays on screen for",
   "giây": "seconds",
   "Lưu làm mẫu": "Save as template",
+  // batch 5: collect reminder
+  "Nhớ lưu bài vào thư mục": "Remember to save your work in",
 };
 
 export const useLang = create<{ lang: "vi" | "en"; toggle: () => void }>((set, get) => ({

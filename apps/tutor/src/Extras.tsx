@@ -327,9 +327,13 @@ function CollectDialog({ send, say, fail, onClose }: { send: Send; say: (s: stri
   const [folder, setFolder] = useState("Lesson1");
   const [pattern, setPattern] = useState("*");
   const [dir, setDir] = useState("");
-  const [got, setGot] = useState<Record<string, number> | null>(null); // files received per computer since Collect was pressed
+  // files received per computer since Collect was pressed: how many, total bytes, time of the last one
+  const [got, setGot] = useState<Record<string, { n: number; b: number; at: Date }> | null>(null);
   useEffect(() => {
-    const un = listen<{ id: string; path: string }>("student-collected", (e) => setGot((g) => g && { ...g, [e.payload.id]: (g[e.payload.id] ?? 0) + 1 }));
+    const un = listen<{ id: string; path: string; size?: number }>("student-collected", (e) => setGot((g) => {
+      const o = g?.[e.payload.id];
+      return g && { ...g, [e.payload.id]: { n: (o?.n ?? 0) + 1, b: (o?.b ?? 0) + (e.payload.size ?? 0), at: new Date() } };
+    }));
     return () => void un.then((f) => f());
   }, []);
   const browse = async () => {
@@ -349,6 +353,10 @@ function CollectDialog({ send, say, fail, onClose }: { send: Send; say: (s: stri
     } catch (e) { fail(String(e)); }
   };
   const have = got ? to.filter((s) => got[s.id]).length : 0;
+  const missing = got ? to.filter((s) => !got[s.id]) : [];
+  const remind = () => invoke<number>("send_command", { ids: missing.map((s) => s.id), cmd: { Message: { text: `${tr(useLang.getState().lang, "Nhớ lưu bài vào thư mục")} Documents\\${folder.trim()}`, seconds: 20 } } })
+    .then((n) => say(`Reminder sent to ${n} PC(s)`), (e) => fail(String(e)));
+  const kb = (b: number) => b >= 1 << 20 ? `${(b / (1 << 20)).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`;
   return (
     <Dialog open onOpenChange={(_, d) => !d.open && onClose()}>
       <DialogSurface style={{ ...D.surface, maxWidth: 900, width: "94vw" }}>
@@ -363,19 +371,20 @@ function CollectDialog({ send, say, fail, onClose }: { send: Send; say: (s: stri
             </div>
             <div style={{ ...D.box, height: 330 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                <thead><tr><th style={{ ...th, width: 130 }}>Computer</th><th style={th}>Student</th><th style={{ ...th, width: 70, textAlign: "right" }}>Files</th><th style={{ ...th, width: 220 }}>Status</th></tr></thead>
+                <thead><tr><th style={{ ...th, width: 130 }}>Computer</th><th style={th}>Student</th><th style={{ ...th, width: 70, textAlign: "right" }}>Files</th><th style={{ ...th, width: 90, textAlign: "right" }}>Size</th><th style={{ ...th, width: 220 }}>Status</th></tr></thead>
                 <tbody>
                   {to.map((s) => {
-                    const n = got?.[s.id] ?? 0;
+                    const r = got?.[s.id], n = r?.n ?? 0;
                     return (
                       <tr key={s.id}>
                         <td style={td}>{s.hostname}</td><td style={td}>{s.user}</td>
                         <td style={{ ...td, color: mut, textAlign: "right" }}>{got ? n : ""}</td>
-                        <td style={td}>{!got ? <Status color={GREY}>Ready</Status> : n ? <Status color={GREEN}>Collected</Status> : <Status color={BLUE}>Nothing received yet</Status>}</td>
+                        <td style={{ ...td, color: mut, textAlign: "right" }}>{r ? kb(r.b) : ""}</td>
+                        <td style={td}>{!got ? <Status color={GREY}>Ready</Status> : r ? <Status color={GREEN}>Collected at {hhmm(r.at)}</Status> : <Status color={BLUE}>Nothing received yet</Status>}</td>
                       </tr>
                     );
                   })}
-                  {!to.length && <tr><td colSpan={4} style={{ ...td, color: mut }}>No student computers are connected.</td></tr>}
+                  {!to.length && <tr><td colSpan={5} style={{ ...td, color: mut }}>No student computers are connected.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -387,6 +396,8 @@ function CollectDialog({ send, say, fail, onClose }: { send: Send; say: (s: stri
             )}
           </DialogContent>
           <DialogActions style={D.foot}>
+            <Button style={{ marginRight: "auto" }} disabled={!dir} onClick={() => invoke("open_folder", { dir }).catch((e) => fail(String(e)))}>Open folder</Button>
+            <Button disabled={!missing.length} onClick={() => void remind()}>Remind {missing.length || ""}</Button>
             <Button appearance="primary" style={{ minWidth: 96 }} disabled={!to.length} onClick={() => void collect()}>Collect</Button>
             <Button style={{ minWidth: 80 }} onClick={onClose}>Close</Button>
           </DialogActions>

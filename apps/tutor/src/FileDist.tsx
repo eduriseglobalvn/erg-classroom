@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Checkbox, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Input, Skeleton, SkeletonItem, tokens } from "@fluentui/react-components";
 import { ArrowUp16Regular, ArrowSync16Regular, Dismiss16Regular, Document16Regular, Folder16Filled, LockClosed16Regular } from "@fluentui/react-icons";
 import { invoke } from "@tauri-apps/api/core";
@@ -62,7 +62,8 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState("");
   // the last (or running) copy: its files, its computers and how far each one is
-  const [job, setJob] = useState<{ names: string[]; list: typeof to; st: Record<string, St> } | null>(null);
+  const [job, setJob] = useState<{ names: string[]; list: typeof to; dir: string; st: Record<string, St>; stopped: boolean } | null>(null);
+  const stop = useRef(false); // Stop finishes the file being copied, then sends nothing more
   const [now, setNow] = useState("");
   const go = (p: string) => {
     setRows(null);
@@ -78,18 +79,20 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
   // folder pane: the folders above the open one, then the folders inside it (a network path is shown as one entry)
   const parts = path.replace(/\\$/, "").split("\\");
   const crumbs = !path ? [] : path.startsWith("\\\\") ? [{ name: path, full: path }] : parts.map((p, i) => ({ name: i ? p : p + "\\", full: i ? parts.slice(0, i + 1).join("\\") : p + "\\" }));
-  const copy = async () => {
-    const names = [...picked], list = to, dir = path.replace(/\\$/, ""), queue = [...list];
+  const copy = async (names: string[], list: typeof to, dir: string) => {
+    const queue = [...list];
+    stop.current = false;
     const st: Record<string, St> = Object.fromEntries(list.map((s) => [s.id, { done: 0, bad: 0, cur: "" }]));
-    const show = () => setJob({ names, list, st: { ...st } });
+    const show = () => setJob({ names, list, dir, st: { ...st }, stopped: stop.current });
     setBusy(true); setDone(""); show();
     let ok = 0, bad = 0;
     // one send_file per computer, so every row shows its own result; 10 at a time, as the backend does for a whole-class send
     const worker = async () => {
-      for (let s = queue.shift(); s; s = queue.shift()) {
+      for (let s = queue.shift(); s && !stop.current; s = queue.shift()) {
         const r = st[s.id];
         setNow(s.id);
         for (const n of names) {
+          if (stop.current) break;
           r.cur = n; show();
           try {
             const [a] = await invoke<[number, number]>("send_file", { ids: [s.id], path: dir + "\\" + n });
@@ -100,8 +103,8 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
       }
     };
     await Promise.all(Array.from({ length: 10 }, worker));
-    setBusy(false);
-    const text = bad ? `${names.length} file(s): ${ok} copies delivered, ${bad} failed` : `${names.length} file(s) copied to ${list.length} PC(s)`;
+    setBusy(false); show();
+    const text = stop.current ? `Stopped: ${ok} copies delivered, ${bad} failed` : bad ? `${names.length} file(s): ${ok} copies delivered, ${bad} failed` : `${names.length} file(s) copied to ${list.length} PC(s)`;
     setDone(text); say(text);
   };
   const size = (n: number) => n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
@@ -110,6 +113,7 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
   const sts = job ? Object.values(job.st) : [];
   const fin = sts.filter((r) => r.done + r.bad === total), failed = fin.filter((r) => r.bad).length;
   const cur = job?.st[now], curPc = job?.list.find((s) => s.id === now);
+  const retry = job && !busy ? job.list.filter((s) => job.st[s.id].bad) : [];
   return (
     <Dialog open onOpenChange={(_, d) => !d.open && !busy && onClose()}>
       <DialogSurface style={{ ...D.surface, maxWidth: "none", width: "min(1300px, 94vw)" }}>
@@ -215,7 +219,7 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
                   <tbody>
                     {list.map((s) => {
                       const r = job?.st[s.id], n = r ? r.done + r.bad : 0;
-                      const [text, color] = !r ? ["Ready", GREEN] : n === total ? (r.bad ? [`Failed: ${r.bad} of ${total} file(s) not delivered`, RED] : ["Copied", GREEN]) : r.cur ? [`Copying… ${r.cur}`, BLUE] : ["Waiting", GREY];
+                      const [text, color] = !r ? ["Ready", GREEN] : n === total ? (r.bad ? [`Failed: ${r.bad} of ${total} file(s) not delivered`, RED] : ["Copied", GREEN]) : r.cur ? [`Copying… ${r.cur}`, BLUE] : job.stopped && !busy ? ["Stopped", GREY] : ["Waiting", GREY];
                       return (
                         <tr key={s.id} style={{ background: busy && s.id === now ? tokens.colorBrandBackground2 : undefined }}>
                           <td style={td}>{s.hostname}</td>
@@ -236,7 +240,9 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
             <span style={{ marginRight: "auto", fontSize: 12, color: mut }}>
               {done || (picked.size ? `${picked.size} file${picked.size === 1 ? "" : "s"} · ${size(bytes)} to each of ${to.length} student${to.length === 1 ? "" : "s"} · ${size(bytes * to.length)} in total` : "Tick the files to copy")}
             </span>
-            <Button appearance="primary" style={{ minWidth: 140 }} disabled={!picked.size || !to.length || busy} onClick={() => void copy()}>
+            {busy && <Button disabled={job?.stopped} onClick={() => { stop.current = true; setJob((j) => j && { ...j, stopped: true }); }}>Stop</Button>}
+            {retry.length > 0 && job && <Button onClick={() => void copy(job.names, retry, job.dir)}>Retry {retry.length} failed</Button>}
+            <Button appearance="primary" style={{ minWidth: 140 }} disabled={!picked.size || !to.length || busy} onClick={() => void copy([...picked], to, path.replace(/\\$/, ""))}>
               {busy ? "Copying…" : `Copy to ${to.length} student${to.length === 1 ? "" : "s"}`}
             </Button>
             <Button style={{ minWidth: 80 }} disabled={busy} onClick={onClose}>Close</Button>

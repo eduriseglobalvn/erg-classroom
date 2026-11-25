@@ -460,7 +460,7 @@ async fn start_roster(app: AppHandle, state: State<'_, AppState>) -> Result<(), 
                 }
                 RosterEvent::Collected { id, path } => {
                     log("collected", &id.to_string(), &path.to_string_lossy());
-                    let _ = app.emit("student-collected", serde_json::json!({ "id": id.to_string(), "path": path.to_string_lossy() }));
+                    let _ = app.emit("student-collected", serde_json::json!({ "id": id.to_string(), "path": path.to_string_lossy(), "size": std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) }));
                 }
                 RosterEvent::Student { id, event: erg_proto::Event::Clipboard(t) } => {
                     let _ = app.emit("student-clipboard", serde_json::json!({ "id": id.to_string(), "text": t }));
@@ -607,6 +607,15 @@ fn app_version() -> &'static str {
     erg_proto::APP_VERSION
 }
 
+/// Opens a folder of this computer in Explorer (only an existing folder, so a file or URL from the page is never run).
+#[tauri::command]
+fn open_folder(dir: String) -> Result<(), String> {
+    if !std::path::Path::new(&dir).is_dir() {
+        return Err(format!("not a folder: {dir}"));
+    }
+    std::process::Command::new("explorer.exe").arg(&dir).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// Opens the project's GitHub Releases page in the default browser (fixed address: nothing from the page is passed on).
 #[tauri::command]
 fn open_releases() -> Result<(), String> {
@@ -652,7 +661,7 @@ fn main() {
             let _ = app;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_room, set_room, local_dir, start_recording, stop_recording, open_overlay, close_overlay, keyshow, start_roster, board_send, deploy, assistant_start, assistant_stop, grant_leader, revoke_leader, send_command, start_show, start_exhibit, stop_exhibit, stop_show, send_file, save_doc, load_doc, wake, attendance_csv, grade_test, make_student_paper, test_report_csv, write_text, set_collect_dir, load_text, save_snapshot, journal_html, journal_list, app_version, open_releases])
+        .invoke_handler(tauri::generate_handler![get_room, set_room, local_dir, start_recording, stop_recording, open_overlay, close_overlay, keyshow, start_roster, board_send, deploy, assistant_start, assistant_stop, grant_leader, revoke_leader, send_command, start_show, start_exhibit, stop_exhibit, stop_show, send_file, save_doc, load_doc, wake, attendance_csv, grade_test, make_student_paper, test_report_csv, write_text, set_collect_dir, load_text, save_snapshot, journal_html, journal_list, app_version, open_releases, open_folder])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
