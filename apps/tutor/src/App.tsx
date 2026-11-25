@@ -14,7 +14,7 @@ import { type Student, useClass } from "./store";
 import { Ribbon, useCommands } from "./Ribbon";
 import { SendWork, WebPane } from "./Panes";
 import { AlertsPanel, AssessPane, Settings, WebRules } from "./Panes2";
-import { About, KEYS, Shortcuts, Timetable, keyName, useTimetable } from "./Panes3";
+import { About, KEYS, SendMessage, Shortcuts, Timetable, keyName, useTimetable } from "./Panes3";
 import { MenuBar, MenuPop } from "./MenuBar";
 import { ordered, useLayout } from "./layout";
 import { Wall } from "./Wall";
@@ -191,7 +191,6 @@ export function App() {
     setPoll({ id, q: q.trim(), o, ans: {} });
     send({ Poll: { id, question: q.trim(), options: o } });
   });
-  const [msgDlg, askMsg] = useAsk("Send a message", "Message text", (text) => send({ Message: { text, seconds: 20 } }));
   // details pane: the same Message command, typed in place
   const [quick, setQuick] = useState("");
   const sendQuick = () => { if (quick.trim()) { send({ Message: { text: quick.trim(), seconds: 20 } }); setQuick(""); } };
@@ -202,14 +201,14 @@ export function App() {
   const [pane, setPane] = useState<"class" | "web" | "assess">("class");
   const [rulesOpen, setRulesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [extra, setExtra] = useState<null | "shortcuts" | "timetable" | "about">(null);
+  const [extra, setExtra] = useState<null | "shortcuts" | "timetable" | "about" | "msg">(null);
   const [webAllowDlg, askWebAllow] = useAsk("Allow only these websites (comma separated)", "school.edu.vn, wikipedia.org", (t) => send({ SetWebPolicy: { mode: "AllowListOnly", list: items(t) } }));
   const [webBlockDlg, askWebBlock] = useAsk("Block these websites (comma separated)", "facebook.com, youtube.com", (t) => send({ SetWebPolicy: { mode: "BlockList", list: items(t) } }));
   const [appBlockDlg, askAppBlock] = useAsk("Block applications (.exe file names)", "game.exe, chrome.exe", (t) => send({ SetAppPolicy: { mode: "BlockList", list: items(t) } }));
   const [appAllowDlg, askAppAllow] = useAsk("Allow only these applications (.exe file names)", "winword.exe, excel.exe", (t) => send({ SetAppPolicy: { mode: "AllowListOnly", list: items(t) } }));
   const cmds = useCommands({
     say: setNote, fail: setErr, run, info: showInfo,
-    ask: { link: askLink, msg: askMsg, chat: askChat, poll: askPoll, webAllow: askWebAllow, webBlock: askWebBlock, guard: () => setGuardOpen(true), appBlock: askAppBlock, appAllow: askAppAllow, work: () => setWorkOpen(true) },
+    ask: { link: askLink, msg: () => setExtra("msg"), chat: askChat, poll: askPoll, webAllow: askWebAllow, webBlock: askWebBlock, guard: () => setGuardOpen(true), appBlock: askAppBlock, appAllow: askAppAllow, work: () => setWorkOpen(true) },
     openWeb: () => setPane("web"),
     openAssess: () => setPane("assess"), settings: () => setSettingsOpen(true), rules: () => setRulesOpen(true),
     shortcuts: () => setExtra("shortcuts"), timetable: () => setExtra("timetable"), about: () => setExtra("about"),
@@ -328,13 +327,14 @@ export function App() {
         </DialogSurface>
       </Dialog>
       <GuardDialog open={guardOpen} onClose={() => setGuardOpen(false)} say={setNote} />
-      {webAllowDlg}{webBlockDlg}{appBlockDlg}{appAllowDlg}{linkDlg}{msgDlg}{cmds.node}
+      {webAllowDlg}{webBlockDlg}{appBlockDlg}{appAllowDlg}{linkDlg}{cmds.node}
       {workOpen && <SendWork onClose={() => setWorkOpen(false)} say={setNote} fail={setErr} />}
       {rulesOpen && <WebRules onClose={() => setRulesOpen(false)} onGuard={() => setGuardOpen(true)} say={setNote} fail={setErr} />}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} fail={setErr} />}
       {extra === "shortcuts" && <Shortcuts onClose={() => setExtra(null)} />}
       {extra === "timetable" && <Timetable onClose={() => setExtra(null)} say={setNote} />}
       {extra === "about" && <About onClose={() => setExtra(null)} say={setNote} />}
+      {extra === "msg" && <SendMessage onClose={() => setExtra(null)} say={setNote} fail={setErr} />}
 
       <div className={s.title}>
         <div className={s.titleSide}>

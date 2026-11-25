@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, Input, tokens } from "@fluentui/react-components";
+import { Button, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, Field, Input, Select, Textarea, tokens } from "@fluentui/react-components";
 import { invoke } from "@tauri-apps/api/core";
 import { useClass } from "./store";
 import { tr, useLang, useT } from "./i18n";
@@ -168,6 +168,61 @@ export function About({ onClose, say }: { onClose: () => void; say: (s: string) 
           <DialogActions style={D.foot}>
             <Button appearance="subtle" style={{ marginRight: "auto" }} onClick={copy}>{t("Chép thông tin")}</Button>
             <Button appearance="primary" onClick={onClose}>OK</Button>
+          </DialogActions>
+        </DialogBody>
+      </DialogSurface>
+    </Dialog>
+  );
+}
+
+// ================= Send a message (design N10): saved templates and how long it stays on screen
+const TPL = ["Cả lớp nhìn lên bảng.", "Còn 5 phút, các em lưu bài.", "Lưu bài và đóng các cửa sổ khác.", "Đeo tai nghe vào."];
+const SECS = [10, 20, 60, 300, 600]; // the student clamps to 1..600 s
+const loadTpl = (): string[] => { try { const v = JSON.parse(localStorage.getItem("erg.msgTemplates") ?? ""); if (Array.isArray(v)) return v.filter((x) => typeof x === "string"); } catch { /* first run */ } return TPL; };
+
+export function SendMessage({ onClose, say, fail }: { onClose: () => void; say: (s: string) => void; fail: (s: string) => void }) {
+  const t = useT();
+  const send = useClass((s) => s.send);
+  const picked = useClass((s) => s.selected.size);
+  const [text, setText] = useState("");
+  const [secs, setSecs] = useState(20);
+  const [tpl, setTpl] = useState(loadTpl);
+  const keep = (l: string[]) => { setTpl(l); localStorage.setItem("erg.msgTemplates", JSON.stringify(l)); };
+  const msg = text.trim();
+  const go = () => send({ Message: { text: msg, seconds: secs } }).then((n) => { say(`${t("Đã gửi tin nhắn tới")} ${n} ${t("máy")}`); onClose(); }, (e) => fail(String(e)));
+  return (
+    <Dialog open onOpenChange={(_, d) => !d.open && onClose()}>
+      <DialogSurface style={{ ...D.surface, maxWidth: 560 }}>
+        <DialogBody style={D.body}>
+          <DlgHead title={t("Gửi tin nhắn")} sub={picked ? `${picked} ${t("máy đang chọn")}` : t("Cả lớp")} onClose={onClose} />
+          <DialogContent style={{ ...D.content, gap: 12 }}>
+            <Field label={t("Nội dung")}>
+              <Textarea autoFocus rows={3} maxLength={500} value={text} onChange={(_, d) => setText(d.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey && msg) void go(); }} />
+            </Field>
+            <div style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 12, color: mut }}>{t("Mẫu soạn sẵn")}</span>
+              <div style={{ border: line, borderRadius: 4, maxHeight: 160, overflowY: "auto" }}>
+                {tpl.map((x) => (
+                  <div key={x} style={{ display: "flex", alignItems: "center", borderBottom: line }}>
+                    <Button appearance="subtle" style={{ flex: 1, justifyContent: "flex-start", fontWeight: 400, minWidth: 0 }} onClick={() => setText(t(x))}>{t(x)}</Button>
+                    <Button appearance="subtle" size="small" aria-label={`${t("Xoá mẫu")}: ${t(x)}`} onClick={() => keep(tpl.filter((y) => y !== x))}>×</Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "end", gap: 12 }}>
+              <Field label={t("Hiện trên màn hình")}>
+                <Select value={String(secs)} onChange={(_, d) => setSecs(Number(d.value))}>
+                  {SECS.map((s) => <option key={s} value={s}>{s < 60 ? `${s} ${t("giây")}` : `${s / 60} ${t("phút")}`}</option>)}
+                </Select>
+              </Field>
+              <Button disabled={!msg || tpl.includes(msg)} onClick={() => keep([...tpl, msg])}>{t("Lưu làm mẫu")}</Button>
+            </div>
+          </DialogContent>
+          <DialogActions style={D.foot}>
+            <Button appearance="primary" disabled={!msg} onClick={() => void go()}>{t("Gửi")}</Button>
+            <Button onClick={onClose}>{t("Huỷ")}</Button>
           </DialogActions>
         </DialogBody>
       </DialogSurface>

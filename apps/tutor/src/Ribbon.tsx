@@ -18,6 +18,7 @@ import { useLang, useT } from "./i18n";
 import { useUi } from "./uistate";
 import { type Chip, Ico, type Item, Pop, RBtn, RDrop, RGroup, RSplit } from "./ui";
 import { QuickLaunch } from "./Panes";
+import { KEYS } from "./Panes3";
 
 type Cmd = Exclude<Item, "-">;
 export type Menu = { label: string; items: Item[] };
@@ -83,6 +84,11 @@ export function useCommands(app: AppCtl) {
   const needAny = Object.values(students).some((s) => s.online) ? undefined : "No student computers are connected";
   const lockText = "Please look at the teacher";
   const web = (mode: string) => () => send({ SetWebPolicy: { mode, list: [] } });
+  // shutting down a room by a slip of the mouse loses every student's unsaved work
+  const askPower = (p: string, what: string) => () => {
+    const n = selected.size || Object.values(students).filter((s) => s.online).length;
+    if (window.confirm(`${what}: ${n} ${t("máy")}?\n${t("Bài học sinh chưa lưu sẽ bị mất.")}`)) void send({ Power: p });
+  };
   const c = {
     // class / groups
     wizard: { icon: <Clock24Regular />, title: t("Bắt đầu tiết học…"), desc: t("Đặt tên bài, mục tiêu và hẹn giờ trên máy học sinh"), run: A.wizard },
@@ -177,9 +183,9 @@ export function useCommands(app: AppCtl) {
     keywords: { icon: <Search24Regular />, title: t("Theo dõi từ khoá gõ phím…"), desc: t("Báo khi học sinh gõ từ khoá cấm"), run: A.keywords },
     // power
     wake: { icon: <PlugConnected24Regular />, title: t("Bật máy (Wake-on-LAN)"), desc: t("Đánh thức máy đang tắt qua mạng"), run: A.wake },
-    shutdown: { icon: <Power24Regular />, title: t("Tắt máy"), desc: t("Tắt máy đang chọn hoặc cả lớp"), run: () => send({ Power: "Shutdown" }) },
-    reboot: { icon: <ArrowSync24Regular />, title: t("Khởi động lại"), desc: t("Khởi động lại máy đang chọn hoặc cả lớp"), run: () => send({ Power: "Reboot" }) },
-    logoff: { icon: <SignOut24Regular />, title: t("Đăng xuất"), desc: t("Đăng xuất tài khoản học sinh"), run: () => send({ Power: "Logoff" }) },
+    shutdown: { icon: <Power24Regular />, title: t("Tắt máy"), desc: t("Tắt máy đang chọn hoặc cả lớp"), run: askPower("Shutdown", t("Tắt máy")) },
+    reboot: { icon: <ArrowSync24Regular />, title: t("Khởi động lại"), desc: t("Khởi động lại máy đang chọn hoặc cả lớp"), run: askPower("Reboot", t("Khởi động lại")) },
+    logoff: { icon: <SignOut24Regular />, title: t("Đăng xuất"), desc: t("Đăng xuất tài khoản học sinh"), run: askPower("Logoff", t("Đăng xuất")) },
     // talk
     msg: { icon: <Comment24Regular />, title: t("Tin nhắn"), desc: t("Hiện một thông báo ngắn trên màn hình học sinh"), run: app.ask.msg },
     chat: { icon: <Chat24Regular />, title: t("Chat"), desc: t("Trò chuyện hai chiều với học sinh"), run: app.ask.chat },
@@ -215,6 +221,7 @@ export function useCommands(app: AppCtl) {
     showGroup: { icon: <PeopleTeam24Regular />, title: t("Nhóm"), run: () => ui.set({ showGroup: !ui.showGroup }), on: ui.showGroup },
     lang: { icon: <Translate24Regular />, title: lang === "vi" ? "English" : "Tiếng Việt", run: toggleLang },
   } satisfies Record<string, Cmd>;
+  for (const [, k, name] of KEYS) (c as Record<string, Cmd>)[name].kbd = k;
 
   const webItems: Item[] = [c.webPane, c.webRules, "-", c.webOpen, c.webAll, c.webTemp, "-", c.webAllow, c.webBlock, "-", c.webGuard];
   const appItems: Item[] = [c.appOpen, c.appBlock, c.appAllow, "-", c.kill];

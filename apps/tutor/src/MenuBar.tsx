@@ -32,7 +32,7 @@ export function MenuPop({ items, head }: { items: Item[]; head?: string }) {
             <MenuPop items={it.sub} />
           </Menu>
         ) : (
-          <MenuItem key={i} icon={it.on ? <Checkmark20Regular /> : undefined} disabled={!!it.off} title={it.off} onClick={it.run}>{it.title}</MenuItem>
+          <MenuItem key={i} icon={it.on ? <Checkmark20Regular /> : undefined} disabled={!!it.off} title={it.off} onClick={it.run} secondaryContent={it.kbd}>{it.title}</MenuItem>
         ))}
       </MenuList>
     </MenuPopover>

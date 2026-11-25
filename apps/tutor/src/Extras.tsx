@@ -417,6 +417,9 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
   const rooms = [...new Set([...saved, room, ...all.map((s) => s.room)].filter(Boolean))].sort();
   const [edit, setEdit] = useState<null | { old: string | null; name: string }>(null);
   const go = (r: string) => connect(r).catch((e) => fail(String(e)));
+  // only rooms whose students we can see have a count ("All rooms" sees every room)
+  const count = (r: string) => { const h = all.filter((s) => !r || s.room === r); return h.length ? `${h.filter((s) => s.online).length}/${h.length}` : "–"; };
+  const [last] = useState<Record<string, string>>(() => { try { return JSON.parse(localStorage.getItem("erg.roomLast") ?? "{}"); } catch { return {}; } });
   const saveEdit = () => {
     const name = edit?.name.trim();
     if (!edit || !name) return;
@@ -471,7 +474,7 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
               </div>
               {/* the room list: one click connects, the connected room is the highlighted one */}
               <div role="radiogroup" aria-label="Room" style={{ ...D.box, flex: 1, minHeight: 150, display: "flex", flexDirection: "column" }}>
-                <div style={{ ...th, display: "flex", alignItems: "center", flex: "none", position: "static" }}>Room</div>
+                <div style={{ ...th, display: "flex", alignItems: "center", gap: 10, flex: "none", position: "static" }}><span style={{ flex: 1 }}>Room</span><span style={{ width: 70, textAlign: "right" }}>Online</span><span style={{ width: 90 }}>Last lesson</span></div>
                 {["", ...rooms].map((r) => (
                   <button key={r} type="button" role="radio" aria-checked={r === room} onClick={() => r !== room && go(r)} title={r || "Every room on the network"}
                     style={{ display: "flex", alignItems: "center", gap: 10, height: 30, flex: "none", padding: "0 12px", border: 0, borderBottom: `1px solid ${tokens.colorNeutralBackground4}`, textAlign: "left",
@@ -479,6 +482,8 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
                     <span style={{ width: 14, height: 14, boxSizing: "border-box", borderRadius: 7, flex: "none", border: r === room ? `4px solid ${BLUE}` : `1px solid ${tokens.colorNeutralStrokeAccessible}`, background: tokens.colorNeutralBackground1 }} />
                     {r ? <Desktop16Regular /> : <Globe16Regular />}
                     <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r || "All rooms"}</span>
+                    <span style={{ width: 70, textAlign: "right", color: mut }}>{count(r)}</span>
+                    <span style={{ width: 90, color: mut }}>{last[r] ? new Date(last[r]).toLocaleDateString() : "–"}</span>
                   </button>
                 ))}
               </div>
@@ -501,6 +506,7 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
             <Button appearance="primary" disabled={!title.trim()} onClick={() => {
               const objectives = obj.split("\n").map((x) => x.trim()).filter(Boolean);
               invoke("save_doc", { name: "lesson", json: JSON.stringify({ teacher, title, objectives, outcome, minutes, end_class_when_timer_stops: false }) }).catch(() => { /* browser dev */ });
+              localStorage.setItem("erg.roomLast", JSON.stringify({ ...last, [room]: new Date().toISOString() }));
               send({ SetLesson: { title: title.trim(), objectives, seconds_left: minutes * 60 } }).then((n) => say(`Lesson started on ${n} PC(s)`));
               if (register) send("RequestRegister");
               onClose();

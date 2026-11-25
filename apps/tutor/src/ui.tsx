@@ -94,7 +94,7 @@ export function RGroup({ caption, children }: { caption: string; children: React
 export const Tip = ({ label, children }: { label: string; children: React.ReactElement }) => <Tooltip content={label} relationship="label" positioning="after">{children}</Tooltip>;
 
 /** One row of a dropdown. `off` is the reason it is unavailable (shown as a tooltip); `"-"` is a separator; `sub` is a submenu (menu bar and right-click menus only). */
-export type Item = "-" | { icon?: ReactElement; title: string; desc?: string; run?: () => void; off?: string; on?: boolean; sub?: Item[] };
+export type Item = "-" | { icon?: ReactElement; title: string; desc?: string; run?: () => void; off?: string; on?: boolean; sub?: Item[]; kbd?: string };
 export type Chip = { icon?: ReactNode; label: string; on?: boolean; off?: string; run: () => void };
 
 function Disabled({ off, children }: { off?: string; children: React.ReactElement }) {

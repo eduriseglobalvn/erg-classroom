@@ -315,6 +315,18 @@ const EN: Record<string, string> = {
   "tiết": "period",
   "Đã chép thông tin": "Details copied",
   "Đã lưu thời khoá biểu": "Timetable saved",
+  // batch 4: message dialog, power confirmation
+  "Bài học sinh chưa lưu sẽ bị mất.": "Students lose any work they have not saved.",
+  "Cả lớp nhìn lên bảng.": "Everyone, please look at the board.",
+  "Còn 5 phút, các em lưu bài.": "5 minutes left, please save your work.",
+  "Lưu bài và đóng các cửa sổ khác.": "Save your work and close other windows.",
+  "Đeo tai nghe vào.": "Put your headphones on.",
+  "Đã gửi tin nhắn tới": "Message sent to",
+  "Mẫu soạn sẵn": "Templates",
+  "Xoá mẫu": "Remove template",
+  "Hiện trên màn hình": "Stays on screen for",
+  "giây": "seconds",
+  "Lưu làm mẫu": "Save as template",
 };
 
 export const useLang = create<{ lang: "vi" | "en"; toggle: () => void }>((set, get) => ({
