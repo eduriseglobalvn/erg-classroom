@@ -209,7 +209,6 @@ export function Settings({ onClose, fail }: { onClose: () => void; fail: (s: str
           <DialogContent style={{ ...D.content, display: "grid", gap: 16 }}>
             {group("Phòng học", <>
               {row("Tên phòng", "Học sinh cùng tên phòng sẽ vào lớp này; để trống là mọi phòng", <Input style={{ width: "100%" }} aria-label={t("Tên phòng")} value={room} onChange={(_, d) => setRoom(d.value)} />)}
-              {row("Khoá phòng (Room Key)", "Đặt khi cài đặt: tệp room.key trong thư mục cấu hình hoặc biến ERG_ROOM_KEY", <span style={{ color: mut }}>{t("Không đổi được ở đây")}</span>)}
             </>)}
             {group("Chung", <>
               {row("Ngôn ngữ", "Ngôn ngữ của màn hình giáo viên", (

@@ -22,6 +22,17 @@ export function JournalDialog({ fail, say, onClose }: { fail: (s: string) => voi
       if (path) { await invoke("write_text", { path, text: html }); say(t("Đã xuất nhật ký")); }
     } catch (e) { fail(String(e)); }
   };
+  // PDF: print the same report from a hidden frame; the Windows print dialog offers "Microsoft Print to PDF"
+  const exportPdf = async () => {
+    try {
+      const html = await invoke<string>("journal_html", { title: t("Nhật ký buổi học"), objectives: [] });
+      const f = document.createElement("iframe");
+      f.style.cssText = "position:fixed;width:0;height:0;border:0";
+      f.onload = () => { f.contentWindow?.print(); setTimeout(() => f.remove(), 1000); };
+      f.srcdoc = html;
+      document.body.appendChild(f);
+    } catch (e) { fail(String(e)); }
+  };
   return (
     <Dialog open onOpenChange={(_, d) => !d.open && onClose()}>
       <DialogSurface style={{ ...D.surface, maxWidth: 760 }}>
@@ -45,6 +56,7 @@ export function JournalDialog({ fail, say, onClose }: { fail: (s: string) => voi
           <DialogActions style={D.foot}>
             <Button onClick={load}>{t("Tải lại")}</Button>
             <Button onClick={exportHtml}>{t("Xuất HTML")}</Button>
+            <Button onClick={exportPdf}>{t("Xuất PDF")}</Button>
             <Button appearance="primary" onClick={onClose}>{t("Đóng")}</Button>
           </DialogActions>
         </DialogBody>

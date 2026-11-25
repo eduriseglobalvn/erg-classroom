@@ -3,7 +3,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Button, Card, Checkbox, Input, Radio, RadioGroup, Select, Text, Textarea, tokens } from "@fluentui/react-components";
-import { Chat24Regular, ChevronDown16Regular, HandRight24Regular, Pin20Filled, Pin20Regular, QuestionCircle24Regular, Star24Filled } from "@fluentui/react-icons";
+import { Chat24Regular, ChevronDown16Regular, Folder24Regular, HandRight24Regular, Pin20Filled, Pin20Regular, QuestionCircle24Regular, Star24Filled } from "@fluentui/react-icons";
 import { t } from "./i18n";
 import { Mark } from "./Views";
 import { BoardCanvas } from "./BoardCanvas";
@@ -28,19 +28,20 @@ export function ToolbarView() {
   }, []);
   const left = l.ends_at ? Math.max(l.ends_at - now, 0) : null;
   // Auto-hide: a thin strip at the top edge; the bar drops down while the mouse is on it (and for the first seconds).
-  const [info, setInfo] = useState<[string, string]>(["", ""]);
+  const [info, setInfo] = useState<[string, string, string]>(["", "", ""]);
   const [folded, setFolded] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [pin, setPin] = useState(false); // pinned: the bar stays open
   const foldSoon = (ms: number) => { clearTimeout(timer.current); if (!pin) timer.current = setTimeout(() => { setFolded(true); setOpen(false); }, ms); };
-  useEffect(() => { invoke<[string, string]>("toolbar_info").then(setInfo); foldSoon(5000); return () => clearTimeout(timer.current); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
-  useEffect(() => { void invoke("toolbar_height", { height: folded ? 5 : open ? 250 : 46 }); }, [folded, open]);
+  useEffect(() => { invoke<[string, string, string]>("toolbar_info").then(setInfo); foldSoon(5000); return () => clearTimeout(timer.current); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { void invoke("toolbar_height", folded ? { height: 10, width: 140 } : { height: open ? 250 : 46 }); }, [folded, open]);
   // the teacher changing the lesson (new title, stars, leader) shows the bar for a moment
   useEffect(() => { setFolded(false); foldSoon(5000); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [l]);
   // shortcut: the lesson start time is not sent, so the bar is full at the moment this end time was first seen; send the start time to make it exact
   const span = useRef<[number, number]>([0, 1]);
   if (left !== null && span.current[0] !== l.ends_at) span.current = [l.ends_at, Math.max(left, 1)];
-  if (folded) return <div style={{ height: "100%", background: "#1F4E9E" }} onMouseEnter={() => { clearTimeout(timer.current); setFolded(false); }} />;
+  // folded: a small tab centred at the top edge
+  if (folded) return <div title={t("Thanh công cụ ERG")} style={{ height: "100%", background: "#1F4E9E", borderRadius: "0 0 6px 6px" }} onMouseEnter={() => { clearTimeout(timer.current); setFolded(false); }} />;
   const d = new Date(now * 1000);
   const two: React.CSSProperties = { display: "flex", flexDirection: "column", lineHeight: "15px", whiteSpace: "nowrap", minWidth: 0 };
   const mut: React.CSSProperties = { color: "#5F5F5F", fontSize: 12 };
@@ -51,7 +52,7 @@ export function ToolbarView() {
     <header onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={() => foldSoon(1200)}
       style={{ background: "#FBFBFB", color: "#1B1B1B", height: 46, boxSizing: "border-box", display: "flex", alignItems: "center", gap: 10, padding: "0 8px 0 12px", borderBottom: "1px solid #C8C8C8", fontSize: 13 }}>
       <Mark s={22} />
-      <div style={two}><span style={{ fontWeight: 600 }}>{info[0]}</span><span style={mut}>{t("phòng")} {info[1]}</span></div>
+      <div style={two}><span style={{ fontWeight: 600 }}>{info[2] || info[0]}</span><span style={mut}>{info[2] ? `${info[0]} · ` : ""}{t("phòng")} {info[1]}</span></div>
       {sep}
       {l.objectives.length > 0 ? (
         <span style={{ position: "relative", display: "flex", alignItems: "center", height: "100%", minWidth: 0 }}>
@@ -90,6 +91,7 @@ export function ToolbarView() {
       {sep}
       <Button icon={<HandRight24Regular />} style={{ borderColor: "#D9A29C", color: "#A32418" }} onClick={() => invoke("help_request", { text: "Em cần giúp đỡ" })}>{t("Xin trợ giúp")}</Button>
       <Button icon={<Chat24Regular />} onClick={() => invoke("open_chat")}>Chat</Button>
+      <Button icon={<Folder24Regular />} title={t("Tệp giáo viên gửi cho bạn")} onClick={() => invoke("open_inbox")}>{t("Bài của tôi")}</Button>
       {l.stars > 0 && <span title={t("Phần thưởng")} style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}><Star24Filled style={{ color: "#B7791F", width: 18, height: 18 }} />{l.stars}</span>}
       {sep}
       <div style={{ ...two, alignItems: "flex-end", fontVariantNumeric: "tabular-nums" }}>

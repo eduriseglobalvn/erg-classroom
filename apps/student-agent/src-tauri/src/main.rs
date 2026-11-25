@@ -423,18 +423,35 @@ fn chat_say(student: State<'_, Arc<Student>>, text: String) -> bool {
     student.say(&text)
 }
 
-/// Student toolbar: folded strip, bar, or bar with the objectives open. Keeps the window's width.
+/// Student toolbar: folded tab, bar, or bar with the objectives open. No width = the whole screen width;
+/// a width (the folded tab) is centred at the top of the screen.
 #[tauri::command]
-fn toolbar_height(window: tauri::WebviewWindow, height: f64) {
-    if let (Ok(size), Ok(k)) = (window.outer_size(), window.scale_factor()) {
-        let _ = window.set_size(tauri::LogicalSize::new(size.width as f64 / k, height.clamp(4.0, 400.0)));
-    }
+fn toolbar_height(window: tauri::WebviewWindow, height: f64, width: Option<f64>) {
+    let Ok(Some(m)) = window.current_monitor() else { return };
+    let k = m.scale_factor();
+    let full = m.size().width as f64 / k;
+    let w = width.unwrap_or(full).clamp(40.0, full);
+    let _ = window.set_size(tauri::LogicalSize::new(w, height.clamp(4.0, 400.0)));
+    let _ = window.set_position(tauri::LogicalPosition::new(m.position().x as f64 / k + (full - w) / 2.0, m.position().y as f64 / k));
 }
 
-/// (computer name, room) for the student toolbar.
+/// (computer name, room, Windows user name) for the student toolbar.
 #[tauri::command]
-fn toolbar_info() -> (String, String) {
-    (std::env::var("COMPUTERNAME").unwrap_or_default(), erg_student_core::load_settings().remove("room").unwrap_or_else(|| "default".into()))
+fn toolbar_info() -> (String, String, String) {
+    (std::env::var("COMPUTERNAME").unwrap_or_default(), erg_student_core::load_settings().remove("room").unwrap_or_else(|| "default".into()), std::env::var("USERNAME").unwrap_or_default())
+}
+
+/// Where files from the teacher land.
+fn inbox_dir() -> std::path::PathBuf {
+    std::path::PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| ".".into())).join("Documents").join("ERG").join("Received")
+}
+
+/// "My work" on the toolbar: shows the received-files folder in Explorer.
+#[tauri::command]
+fn open_inbox() {
+    let dir = inbox_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::process::Command::new("explorer.exe").arg(&dir).spawn();
 }
 
 /// The student starts a chat with the teacher from the toolbar.
@@ -605,7 +622,7 @@ fn main() {
         let _ = LOCAL.set(erg_student_core::privlocal::Local::new(key)); // zero key = a holder answers on the pipe
     }
     let app = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![toolbar_height, toolbar_info, open_chat, show_subscribe, chat_say, poll_answer, lesson_state, board_state, board_emit, ui_lang, leader_action, help_request, register, hand, test_data, test_done, config_load, config_save])
+        .invoke_handler(tauri::generate_handler![toolbar_height, toolbar_info, open_inbox, open_chat, show_subscribe, chat_say, poll_answer, lesson_state, board_state, board_emit, ui_lang, leader_action, help_request, register, hand, test_data, test_done, config_load, config_save])
         .setup(move |app| {
             if configure {
                 WebviewWindowBuilder::new(app, "config", WebviewUrl::App("index.html?view=config".into()))
@@ -707,7 +724,7 @@ fn main() {
                 user: std::env::var("USERNAME").unwrap_or_default(),
                 discovery_port: DISCOVERY_PORT,
                 browse_addrs: std::env::var("ERG_GATEWAY").ok().or_else(|| erg_student_core::load_settings().remove("gateway")).and_then(|a| a.parse().ok()).into_iter().collect(),
-        inbox: std::path::PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| ".".into())).join("Documents").join("ERG").join("Received"),
+        inbox: inbox_dir(),
             };
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = run_with(cfg, student, None).await {
