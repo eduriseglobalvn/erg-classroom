@@ -1,0 +1,31 @@
+[package]
+name = "erg-tutor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde.workspace = true
+serde_json = "1"
+uuid.workspace = true
+tokio = { version = "1", features = ["full"] }
+erg-proto = { path = "../../../crates/proto" }
+erg-net = { path = "../../../crates/net" }
+erg-tutor-core = { path = "../../../crates/tutor-core" }
+erg-show = { path = "../../../crates/show" }
+erg-assess = { path = "../../../crates/assess" }
+erg-deploy = { path = "../../../crates/deploy" }
+
+rand = "0.8"
+
+[target.'cfg(windows)'.dependencies]
+erg-capture = { path = "../../../crates/capture" }
+erg-encode = { path = "../../../crates/encode" }
+erg-broadcast = { path = "../../../crates/broadcast" }
+erg-sysops = { path = "../../../crates/sysops" }

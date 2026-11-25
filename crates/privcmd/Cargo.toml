@@ -1,0 +1,12 @@
+[package]
+name = "erg-privcmd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+erg-proto = { path = "../proto" }
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2"
+postcard.workspace = true

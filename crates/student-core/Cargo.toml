@@ -1,0 +1,23 @@
+[package]
+name = "erg-student-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+erg-proto = { path = "../proto" }
+erg-net = { path = "../net" }
+erg-show = { path = "../show" }
+erg-assess = { path = "../assess" }
+erg-deploy = { path = "../deploy" }
+erg-privcmd = { path = "../privcmd" }
+tokio = { version = "1", features = ["full"] }
+uuid.workspace = true
+tracing = "0.1"
+sysinfo = { version = "0.33", default-features = false, features = ["system", "disk", "user", "network"] }
+
+[dev-dependencies]
+erg-tutor-core = { path = "../tutor-core" }
+
+[target.'cfg(windows)'.dev-dependencies]
+erg-authpipe = { path = "../authpipe" }

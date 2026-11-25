@@ -1,0 +1,155 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One MSI for ERG Classroom (WiX v5): the wizard asks "Student or Teacher". Built by build-msi.ps1 (programs from ..\target\release).
+  Silent student (the default): msiexec /i ERGClassroom.msi /qn ROOM="Phong Tin 1" [ROOMKEY=<64 hex>] [GATEWAY=10.0.0.5:47810] [ALLOWPOWER=1]
+  Silent teacher:               msiexec /i ERGClassroom.msi /qn ADDLOCAL=Tutor
+  Never run on a real machine yet (needs admin) - see TEST-MAY-THAT.md.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="ERG Classroom" Manufacturer="ERG" Version="$(var.Version)" UpgradeCode="6f1d2c1e-7b0a-4a52-9d3e-3c1f5a7b9e21" Scope="perMachine">
+    <!-- AllowSameVersionUpgrades: a rebuild of the same version replaces the old one instead of installing next to it.
+         afterInstallInitialize: the old version is removed inside the transaction, so KeepConfig can run (as SYSTEM) before it. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" Schedule="afterInstallInitialize" DowngradeErrorMessage="A newer version is installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="ROOM" Value="default" Secure="yes" />
+    <Property Id="ROOMKEY" Secure="yes" Hidden="yes" />
+    <Property Id="GATEWAY" Secure="yes" />
+    <Property Id="ALLOWPOWER" Secure="yes" />
+    <!-- TUTORDESKTOP=1 (wizard checkbox, or on the command line): also put a Tutor shortcut on the desktop of all users -->
+    <Property Id="TUTORDESKTOP" Secure="yes" />
+
+    <!-- ERG branding (made by make-brand-art.ps1 from erg-logo.png): Apps &amp; features icon, shortcuts, wizard art -->
+    <Icon Id="ErgIcon.exe" SourceFile="erg.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ErgIcon.exe" />
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+    <Property Id="ROLE" Value="Student" Secure="yes" />
+    <!-- ROOMKEY is optional and command-line only: without it write-config.ps1 installs the built-in key the Tutor also falls back to. -->
+
+    <!-- Wizard: Welcome -> RoleDlg (Student or Teacher, student settings) -> Ready. Change/Repair keep the stock feature tree. -->
+    <ui:WixUI Id="WixUI_FeatureTree" />
+    <UI>
+      <Dialog Id="RoleDlg" Width="370" Height="270" Title="!(loc.WelcomeDlg_Title)">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.CustomizeDlgBannerBitmap)" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="210" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Install for" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose who uses this computer." />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="Role" Type="RadioButtonGroup" Property="ROLE" X="25" Y="55" Width="320" Height="50">
+          <RadioButtonGroup Property="ROLE">
+            <RadioButton Value="Student" X="0" Y="0" Width="320" Height="16" Text="&amp;Student: this computer is controlled by the teacher" />
+            <RadioButton Value="Tutor" X="0" Y="22" Width="320" Height="16" Text="&amp;Teacher: installs the Tutor console" />
+          </RadioButtonGroup>
+        </Control>
+        <Control Id="RoomLbl" Type="Text" X="40" Y="112" Width="80" Height="12" Text="&amp;Room:" DisableCondition="ROLE = &quot;Tutor&quot;" EnableCondition="ROLE = &quot;Student&quot;" />
+        <Control Id="Room" Type="Edit" Property="ROOM" X="125" Y="109" Width="220" Height="17" DisableCondition="ROLE = &quot;Tutor&quot;" EnableCondition="ROLE = &quot;Student&quot;" />
+        <Control Id="GwLbl" Type="Text" X="40" Y="134" Width="80" Height="12" Text="Ser&amp;ver (optional):" DisableCondition="ROLE = &quot;Tutor&quot;" EnableCondition="ROLE = &quot;Student&quot;" />
+        <Control Id="Gw" Type="Edit" Property="GATEWAY" X="125" Y="131" Width="220" Height="17" DisableCondition="ROLE = &quot;Tutor&quot;" EnableCondition="ROLE = &quot;Student&quot;" />
+        <Control Id="Desk" Type="CheckBox" Property="TUTORDESKTOP" CheckBoxValue="1" X="40" Y="160" Width="300" Height="16" Text="Create a &amp;desktop shortcut for the Tutor" DisableCondition="ROLE = &quot;Student&quot;" EnableCondition="ROLE = &quot;Tutor&quot;" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="WelcomeDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="AddLocal" Value="Tutor" Condition="ROLE = &quot;Tutor&quot;" />
+          <Publish Event="Remove" Value="Student" Condition="ROLE = &quot;Tutor&quot;" />
+          <Publish Event="AddLocal" Value="Student" Condition="ROLE = &quot;Student&quot;" />
+          <Publish Event="Remove" Value="Tutor" Condition="ROLE = &quot;Student&quot;" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+      <!-- later Order wins over the stock wizard path (which goes through the licence and the feature tree) -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="RoleDlg" Order="99" Condition="NOT Installed" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="RoleDlg" Order="99" Condition="NOT Installed" />
+    </UI>
+
+    <!-- WebView2 (needed by both programs) is missing on many Windows 10 PCs and the room may have no Internet:
+         the offline Evergreen installer travels inside the MSI and runs only when no runtime is registered. -->
+    <Property Id="WEBVIEW2">
+      <RegistrySearch Id="Wv2Machine" Root="HKLM" Key="SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" Name="pv" Type="raw" Bitness="always32" />
+    </Property>
+    <!-- -d Lite=1 (the update package sent over the LAN): no WebView2 inside, 15 MB instead of 300 MB -->
+    <?ifndef Lite?>
+    <Binary Id="Wv2Setup" SourceFile="MicrosoftEdgeWebView2RuntimeInstallerX64.exe" />
+    <CustomAction Id="InstallWebView2" BinaryRef="Wv2Setup" ExeCommand="/silent /install" Execute="deferred" Impersonate="no" Return="ignore" />
+    <?endif?>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="ERGClassroom">
+        <Component Id="AgentExe" Guid="*">
+          <File Id="AgentExe" Source="erg-student-agent.exe" KeyPath="yes">
+            <!-- Start menu, all users. Saving needs "Run as administrator" (config.txt is admin-only). -->
+            <Shortcut Id="ConfigLnk" Icon="ErgIcon.exe" Directory="ProgramMenuFolder" Name="ERG Classroom Student Configurator" Arguments="--config"
+                      Description="Room, network and security settings of this student computer" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+          </File>
+          <fw:FirewallException Id="FwAgent" Name="ERG Classroom (agent)" Program="[#AgentExe]" Protocol="udp" Profile="all" />
+        </Component>
+        <Component Id="WatchdogExe" Guid="*">
+          <File Id="WatchdogExe" Source="erg-student-watchdog.exe" KeyPath="yes" />
+          <ServiceInstall Id="Svc" Name="ERGStudent" DisplayName="ERG Classroom Student" Type="ownProcess" Start="auto"
+                          ErrorControl="normal" Account="LocalSystem" Arguments="service" />
+          <ServiceControl Id="SvcCtl" Name="ERGStudent" Start="install" Stop="both" Remove="uninstall" Wait="no" />
+        </Component>
+        <Component Id="ConfigScript" Guid="*">
+          <File Id="ConfigScript" Source="write-config.ps1" KeyPath="yes" />
+        </Component>
+        <Component Id="TutorExe" Guid="*">
+          <File Id="TutorExe" Source="erg-tutor.exe" KeyPath="yes">
+            <Shortcut Id="TutorLnk" Icon="ErgIcon.exe" Directory="ProgramMenuFolder" Name="ERG Classroom Tutor" Description="Teacher console"
+                      WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+          </File>
+          <fw:FirewallException Id="FwTutor" Name="ERG Classroom (tutor)" Program="[#TutorExe]" Protocol="udp" Profile="all" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="TutorDesktop" Guid="*" Condition="TUTORDESKTOP = 1">
+        <Shortcut Id="TutorDeskLnk" Icon="ErgIcon.exe" Name="ERG Classroom Tutor" Description="Teacher console" Target="[#TutorExe]" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="Software\ERG\Classroom" Name="TutorDesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <!-- deferred + no impersonation = runs as SYSTEM. Hidden ROOMKEY is masked in the msi log. -->
+    <CustomAction Id="WriteConfig" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="check"
+      ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]write-config.ps1&quot; -Key &quot;[ROOMKEY]&quot; -Room &quot;[ROOM]&quot; -Gateway &quot;[GATEWAY]&quot; -Agent &quot;[INSTALLFOLDER]erg-student-agent.exe&quot; -AllowPower &quot;[ALLOWPOWER]&quot; -Upgrade &quot;[WIX_UPGRADE_DETECTED]&quot;" />
+    <CustomAction Id="RemoveConfig" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
+      ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]write-config.ps1&quot; -Remove" />
+    <!-- Upgrade: versions up to 0.1 delete %ProgramData%\ERGClassroom when they are removed, so the room and the key are
+         copied aside first (/SEC keeps room.key readable by SYSTEM and administrators only); write-config.ps1 puts them back.
+         A leftover .keep folder is deleted first: a student could have planted one. -->
+    <CustomAction Id="KeepConfig" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
+      ExeCommand="cmd.exe /c &quot;rmdir /s /q &quot;[CommonAppDataFolder]ERGClassroom.keep&quot; &amp; if exist &quot;[CommonAppDataFolder]ERGClassroom\room.key&quot; robocopy &quot;[CommonAppDataFolder]ERGClassroom&quot; &quot;[CommonAppDataFolder]ERGClassroom.keep&quot; room.key config.txt /SEC /R:1 /W:1&quot;" />
+    <!-- Upgrade: the student program runs in the student's session and would keep its exe in use (= "restart needed").
+         Stop the service first, or it starts the program again. -->
+    <CustomAction Id="StopOld" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
+      ExeCommand="cmd.exe /c &quot;sc stop ERGStudent &amp; ping -n 4 127.0.0.1 &gt;nul &amp; taskkill /F /IM erg-student-agent.exe&quot;" />
+    <!-- Windows restarts the service itself if it ever stops unexpectedly (the service restarts the student program) -->
+    <CustomAction Id="SvcRecovery" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
+      ExeCommand="sc.exe failure ERGStudent reset= 60 actions= restart/2000/restart/2000/restart/2000" />
+    <InstallExecuteSequence>
+      <Custom Action="SvcRecovery" After="InstallServices" Condition="&amp;Student=3" />
+      <Custom Action="KeepConfig" Before="StopOld" Condition="WIX_UPGRADE_DETECTED" />
+      <Custom Action="StopOld" Before="RemoveExistingProducts" Condition="WIX_UPGRADE_DETECTED" />
+      <?ifndef Lite?>
+      <Custom Action="InstallWebView2" After="InstallFiles" Condition="NOT WEBVIEW2 AND NOT Installed" />
+      <?endif?>
+      <Custom Action="WriteConfig" After="InstallFiles" Condition="&amp;Student=3" />
+      <Custom Action="RemoveConfig" Before="RemoveFiles" Condition="&amp;Student=2 AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <Feature Id="Student" Title="Student" Description="Agent and service on a computer the teacher controls." Level="1" AllowAbsent="yes">
+      <ComponentRef Id="AgentExe" />
+      <ComponentRef Id="WatchdogExe" />
+      <ComponentRef Id="ConfigScript" />
+    </Feature>
+    <!-- Level 2 = not installed unless picked in the wizard or with ADDLOCAL=Tutor -->
+    <Feature Id="Tutor" Title="Teacher" Description="The Tutor console." Level="2" AllowAbsent="yes">
+      <ComponentRef Id="TutorExe" />
+      <ComponentRef Id="TutorDesktop" />
+    </Feature>
+  </Package>
+</Wix>
+

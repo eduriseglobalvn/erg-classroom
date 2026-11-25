@@ -1,0 +1,11 @@
+{
+  "title": "Kiểm tra nhanh Tin học",
+  "shuffle": false,
+  "questions": [
+    { "text": "Chọn các đuôi file là ảnh", "points": 2.0, "kind": { "Choice": { "options": [".png", ".docx", ".jpg", ".xlsx"], "correct": [0, 2] } } },
+    { "text": "Excel là phần mềm bảng tính", "points": 1.0, "kind": { "TrueFalse": { "answer": true } } },
+    { "text": "Thủ đô của Việt Nam là ___ ; 5 + 5 = ___", "points": 2.0, "kind": { "Fill": { "accepted": [["Hà Nội", "Ha Noi"], ["10"]] } } },
+    { "text": "Nối thiết bị với chức năng", "points": 3.0, "kind": { "Match": { "left": ["Chuột", "Bàn phím", "Màn hình"], "right": ["Nhập văn bản", "Hiển thị", "Trỏ và nhấp"], "pairs": [2, 0, 1] } } },
+    { "text": "Sắp xếp theo thứ tự lưu một file", "points": 2.0, "kind": { "Order": { "items": ["Mở menu File", "Chọn Save", "Đặt tên", "Bấm Lưu"] } } }
+  ]
+}

@@ -1,0 +1,25 @@
+[package]
+name = "erg-student"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+erg-proto = { path = "../../crates/proto" }
+erg-student-core = { path = "../../crates/student-core" }
+erg-policy = { path = "../../crates/policy" }
+erg-assess = { path = "../../crates/assess" }
+erg-show = { path = "../../crates/show" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+erg-capture = { path = "../../crates/capture" }
+erg-sysops = { path = "../../crates/sysops" }
+erg-authpipe = { path = "../../crates/authpipe" }
+erg-broadcast = { path = "../../crates/broadcast" }
+windows = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
+
+[dev-dependencies]
+erg-tutor-core = { path = "../../crates/tutor-core" }

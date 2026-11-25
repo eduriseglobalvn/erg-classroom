@@ -1,0 +1,18 @@
+[package]
+name = "erg-sim"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "erg_sim"
+
+[[bin]]
+name = "student-sim"
+path = "src/main.rs"
+
+[dependencies]
+erg-proto = { path = "../proto" }
+erg-net = { path = "../net" }
+tokio = { version = "1", features = ["full"] }
+uuid.workspace = true

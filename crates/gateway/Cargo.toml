@@ -1,0 +1,24 @@
+[package]
+name = "erg-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "erg_gateway"
+
+[[bin]]
+name = "erg-gateway"
+path = "src/main.rs"
+
+[dependencies]
+erg-proto = { path = "../proto" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+uuid.workspace = true
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+erg-net = { path = "../net" }
+erg-tutor-core = { path = "../tutor-core" }
+erg-student-core = { path = "../student-core" }

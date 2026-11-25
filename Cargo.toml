@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = ["crates/proto", "crates/net", "crates/sim", "crates/tutor-core", "crates/student-core", "crates/show", "crates/capture", "crates/encode", "crates/policy", "crates/assess", "crates/sysops", "crates/broadcast", "crates/gateway",
+  "crates/mp4", "crates/deploy", "crates/authpipe", "crates/privcmd", "apps/student-watchdog","apps/student-svc", "apps/tutor/src-tauri", "apps/student-agent/src-tauri"]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+version = "0.2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", features = ["alloc"] }
+uuid = { version = "1", features = ["v4", "serde"] }

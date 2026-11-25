@@ -1,0 +1,14 @@
+[package]
+name = "erg-deploy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+erg-proto = { path = "../proto" }
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2"
+rand = "0.8"
+serde.workspace = true
+serde_json = "1"

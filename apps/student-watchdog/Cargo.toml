@@ -1,0 +1,24 @@
+[package]
+name = "erg-student-watchdog"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "erg-student-watchdog"
+path = "src/main.rs"
+
+[dependencies]
+erg-deploy = { path = "../../crates/deploy" }
+erg-authpipe = { path = "../../crates/authpipe" }
+erg-net = { path = "../../crates/net" }
+erg-privcmd = { path = "../../crates/privcmd" }
+erg-proto = { path = "../../crates/proto" }
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.8"
+erg-policy = { path = "../../crates/policy" }
+windows = { version = "0.61", features = [
+  "Win32_Foundation", "Win32_Security", "Win32_System_RemoteDesktop", "Win32_System_Threading",
+  "Win32_System_Environment", "Win32_System_Diagnostics_ToolHelp",
+] }
