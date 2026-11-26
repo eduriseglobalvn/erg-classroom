@@ -119,7 +119,7 @@ const EN: Record<string, string> = {
   "Thu bài, chấm điểm và lưu kết quả CSV": "Collect, grade and save results as CSV", "Tự chạy các lệnh theo mốc thời gian": "Run commands on a timeline",
   "Điều khiển lớp từ điện thoại cùng mạng Wi-Fi": "Control the class from a phone on the same Wi-Fi",
   // v2 shell: title bar, menus, wall, details pane
-  "Phòng học": "Classroom", "Khung chi tiết": "Details pane", "Truy cập web": "Web access", "In ấn": "Printing", "USB và thiết bị": "USB and devices",
+  "Phòng học": "Classroom", "Khung chi tiết": "Details pane", "Truy cập web": "Web access", "In ấn": "Printing", "Hỏi và đáp": "Question and answer", "Gửi và thu bài": "Send and collect work", "In ấn và thiết bị": "Printing and devices", "USB và thiết bị": "USB and devices",
   "Âm thanh": "Sound", "Bảo vệ": "Protect", "Chưa kết nối": "Not connected", "Kết thúc lớp": "End class", "Màn hình học sinh": "Student screens",
   "Lệnh áp dụng cho": "Commands apply to", "cả lớp": "whole class", "Cỡ": "Size", "Hiện nhóm": "Show groups", "Tên hiển thị": "Name",
   "Tên máy tính": "Computer name", "Kéo trên vùng trống để chọn nhiều học sinh": "Drag over empty space to select several students",

@@ -2,12 +2,12 @@ import { GuardDialog } from "./Guard";
 import { UpdateBar } from "./Update";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  Button, Checkbox, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Input, Menu,
+  Button, Checkbox, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Input, Menu, MenuTrigger,
   MessageBar, MessageBarActions, MessageBarBody, Select, Slider, Text, makeStyles, mergeClasses, shorthands, tokens,
 } from "@fluentui/react-components";
 import {
   Desktop24Regular, Desktop20Regular, Globe20Regular, Add20Regular, ScanCamera20Regular, DocumentEdit20Regular, Board20Regular, Edit20Regular,
-  History20Regular, Folder20Regular, PanelRight20Regular, Dismiss16Regular,
+  History20Regular, Folder20Regular, PanelRight20Regular, Dismiss16Regular, AppsList20Regular, QuestionCircle20Regular, Send20Regular, Print20Regular,
 } from "@fluentui/react-icons";
 import { listen } from "@tauri-apps/api/event";
 import { type Student, useClass } from "./store";
@@ -260,14 +260,19 @@ export function App() {
   const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
   const pick = (st: Student, e: React.MouseEvent) => toggle(st.id, e.ctrlKey || e.metaKey);
   const zoom = (st: Student) => { toggle(st.id, false); ui.request("remote"); };
-  const nav: { k: Req | "class" | "web" | "assess"; icon: React.ReactNode; label: string; off?: boolean }[] = [
+  // design NRail: student screens, web, applications, Q&A, work, …, printing; menus reuse the ribbon's commands
+  const nav: { k: Req | "class" | "web" | "assess" | "apps" | "ask" | "work" | "print"; icon: React.ReactNode; label: string; off?: boolean; menu?: Item[] }[] = [
     { k: "class", icon: <Desktop20Regular />, label: t("Màn hình học sinh") },
     { k: "web", icon: <Globe20Regular />, label: t("Truy cập web") },
+    { k: "apps", icon: <AppsList20Regular />, label: t("Ứng dụng"), menu: cmds.appItems },
+    { k: "ask", icon: <QuestionCircle20Regular />, label: t("Hỏi và đáp") },
+    { k: "work", icon: <Send20Regular />, label: t("Gửi và thu bài"), menu: [cmds.c.sendWork, cmds.c.sendFile, cmds.c.collect] },
     { k: "scan", icon: <ScanCamera20Regular />, label: t("Giám sát") },
     { k: "assess", icon: <DocumentEdit20Regular />, label: t("Đánh giá") },
     { k: "board", icon: <Board20Regular />, label: t("Bảng tương tác") },
     { k: "whiteboard", icon: <Edit20Regular />, label: t("Bảng trắng") },
     { k: "journal", icon: <History20Regular />, label: t("Nhật ký") },
+    { k: "print", icon: <Print20Regular />, label: t("In ấn và thiết bị"), menu: [...cmds.sub.print.sub, "-", ...cmds.sub.usb.sub] },
     { k: "files", icon: <Folder20Regular />, label: t("Tệp máy học sinh"), off: selected.size !== 1 },
   ];
   const tab = (on: boolean, label: string, count: number, onClick: () => void) => (
@@ -363,11 +368,17 @@ export function App() {
         <nav className={s.rail} aria-label="Views">
           {nav.map((it) => {
             const on = it.k === pane;
+            if (it.menu) return (
+              <Menu key={it.k} positioning="after-top">
+                <Tip label={it.label}><MenuTrigger disableButtonEnhancement><button type="button" aria-label={it.label} className={s.railBtn}>{it.icon}</button></MenuTrigger></Tip>
+                <MenuPop items={it.menu} head={it.label} />
+              </Menu>
+            );
             return (
               <Tip key={it.k} label={it.label}>
                 <button type="button" aria-label={it.label} aria-current={on ? "page" : undefined} disabled={it.off}
                   className={mergeClasses(s.railBtn, on && s.railOn)}
-                  onClick={() => { if (it.k === "class") { setPane("class"); lay.setFilter(null); setHelpTab(false); } else if (it.k === "web" || it.k === "assess") setPane(it.k); else ui.request(it.k); }}>{it.icon}</button>
+                  onClick={() => { if (it.k === "class") { setPane("class"); lay.setFilter(null); setHelpTab(false); } else if (it.k === "web" || it.k === "assess") setPane(it.k); else if (it.k === "ask") cmds.c.ask.run(); else ui.request(it.k as Req); }}>{it.icon}</button>
               </Tip>
             );
           })}
