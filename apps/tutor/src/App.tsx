@@ -1,4 +1,5 @@
 import { GuardDialog } from "./Guard";
+import { AppListDialog } from "./AppList";
 import { UpdateBar } from "./Update";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -64,7 +65,7 @@ const useStyles = makeStyles({
     "::before": { content: '""', position: "absolute", left: 0, top: "11px", bottom: "11px", width: "3px", borderRadius: "2px", background: tokens.colorBrandBackground },
   },
   main: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column" },
-  tabs: { display: "flex", alignItems: "center", gap: "8px", height: "40px", boxSizing: "border-box", padding: "0 12px", flex: "0 0 auto", borderBottom: stroke, background: tokens.colorNeutralBackground2 },
+  tabs: { display: "flex", alignItems: "center", gap: "8px", height: "36px", boxSizing: "border-box", padding: "0 12px", flex: "0 0 auto", borderBottom: stroke, background: tokens.colorNeutralBackground2 },
   tabScroll: { display: "flex", alignItems: "center", gap: "2px", overflowX: "auto", scrollbarWidth: "none", minWidth: 0 },
   tab: {
     display: "inline-flex", alignItems: "center", gap: "6px", height: "28px", flex: "0 0 auto", padding: "0 12px", cursor: "pointer", whiteSpace: "nowrap",
@@ -79,7 +80,7 @@ const useStyles = makeStyles({
   count: { fontWeight: 400, color: tokens.colorNeutralForeground3 },
   tabSide: { display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", color: tokens.colorNeutralForeground3, fontSize: "12px" },
   center: { flex: 1, minHeight: 0, display: "flex" },
-  detail: { width: "300px", flex: "0 0 auto", display: "flex", flexDirection: "column", background: tokens.colorNeutralBackground2, borderLeft: stroke },
+  detail: { width: "280px", flex: "0 0 auto", display: "flex", flexDirection: "column", background: tokens.colorNeutralBackground2, borderLeft: stroke },
   detailHead: { display: "flex", alignItems: "center", gap: "8px", height: "40px", boxSizing: "border-box", flex: "0 0 auto", padding: "0 6px 0 12px", borderBottom: stroke },
   detailBody: { flex: 1, minHeight: 0, overflow: "auto", padding: "12px", display: "flex", flexDirection: "column", gap: "12px" },
   btnRow: { display: "flex", gap: "6px", "& > button": { flex: "1 1 0", minWidth: 0 } },
@@ -90,7 +91,7 @@ const useStyles = makeStyles({
   ell: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   kv: { display: "flex", alignItems: "center", gap: "8px", height: "30px", padding: "0 10px", borderBottom: `1px solid ${tokens.colorNeutralStroke3}`, ":last-child": { borderBottomStyle: "none" } },
   kvKey: { width: "86px", flex: "0 0 auto", color: tokens.colorNeutralForeground3 },
-  bar: { display: "flex", alignItems: "center", gap: "14px", height: "40px", boxSizing: "border-box", padding: "0 12px", flex: "0 0 auto", background: tokens.colorNeutralBackground2, borderTop: stroke, overflow: "hidden", "& > .fui-Checkbox": { flex: "none" } },
+  bar: { display: "flex", alignItems: "center", gap: "14px", height: "34px", boxSizing: "border-box", padding: "0 12px", flex: "0 0 auto", background: tokens.colorNeutralBackground2, borderTop: stroke, overflow: "hidden", "& > .fui-Checkbox": { flex: "none" } },
   hint: { fontSize: "12px", color: tokens.colorNeutralForeground3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   barItem: { display: "flex", alignItems: "center", gap: "8px", whiteSpace: "nowrap" },
   status: { display: "flex", alignItems: "center", gap: "16px", height: "24px", padding: "0 12px", fontSize: "12px", flex: "0 0 auto", whiteSpace: "nowrap", color: tokens.colorNeutralForegroundOnBrand, background: tokens.colorBrandBackground },
@@ -204,11 +205,10 @@ export function App() {
   const [extra, setExtra] = useState<null | "shortcuts" | "timetable" | "about" | "msg">(null);
   const [webAllowDlg, askWebAllow] = useAsk("Allow only these websites (comma separated)", "school.edu.vn, wikipedia.org", (t) => send({ SetWebPolicy: { mode: "AllowListOnly", list: items(t) } }));
   const [webBlockDlg, askWebBlock] = useAsk("Block these websites (comma separated)", "facebook.com, youtube.com", (t) => send({ SetWebPolicy: { mode: "BlockList", list: items(t) } }));
-  const [appBlockDlg, askAppBlock] = useAsk("Block applications (.exe file names)", "game.exe, chrome.exe", (t) => send({ SetAppPolicy: { mode: "BlockList", list: items(t) } }));
-  const [appAllowDlg, askAppAllow] = useAsk("Allow only these applications (.exe file names)", "winword.exe, excel.exe", (t) => send({ SetAppPolicy: { mode: "AllowListOnly", list: items(t) } }));
+  const [appMode, setAppMode] = useState<null | "BlockList" | "AllowListOnly">(null);
   const cmds = useCommands({
     say: setNote, fail: setErr, run, info: showInfo,
-    ask: { link: askLink, msg: () => setExtra("msg"), chat: askChat, poll: askPoll, webAllow: askWebAllow, webBlock: askWebBlock, guard: () => setGuardOpen(true), appBlock: askAppBlock, appAllow: askAppAllow, work: () => setWorkOpen(true) },
+    ask: { link: askLink, msg: () => setExtra("msg"), chat: askChat, poll: askPoll, webAllow: askWebAllow, webBlock: askWebBlock, guard: () => setGuardOpen(true), appBlock: () => setAppMode("BlockList"), appAllow: () => setAppMode("AllowListOnly"), work: () => setWorkOpen(true) },
     openWeb: () => setPane("web"),
     openAssess: () => setPane("assess"), settings: () => setSettingsOpen(true), rules: () => setRulesOpen(true),
     shortcuts: () => setExtra("shortcuts"), timetable: () => setExtra("timetable"), about: () => setExtra("about"),
@@ -332,7 +332,7 @@ export function App() {
         </DialogSurface>
       </Dialog>
       <GuardDialog open={guardOpen} onClose={() => setGuardOpen(false)} say={setNote} />
-      {webAllowDlg}{webBlockDlg}{appBlockDlg}{appAllowDlg}{linkDlg}{cmds.node}
+      {webAllowDlg}{webBlockDlg}<AppListDialog mode={appMode} onClose={() => setAppMode(null)} onSend={(mode, list) => send({ SetAppPolicy: { mode, list } })} />{linkDlg}{cmds.node}
       {workOpen && <SendWork onClose={() => setWorkOpen(false)} say={setNote} fail={setErr} />}
       {rulesOpen && <WebRules onClose={() => setRulesOpen(false)} onGuard={() => setGuardOpen(true)} say={setNote} fail={setErr} />}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} fail={setErr} />}
@@ -427,7 +427,7 @@ export function App() {
               onTileMenu={(st, e) => { if (!selected.has(st.id)) toggle(st.id, false); setCtx({ x: e.clientX, y: e.clientY }); }} />
             <AlertsPanel onRules={() => setRulesOpen(true)} fail={setErr} />
 
-            {ui.detail && (
+            {ui.detail && selected.size > 0 && (
               <aside className={s.detail} aria-label={t("Chi tiết")}>
                 <div className={s.detailHead}>
                   {one && <span className={s.dot} style={{ background: one.online ? green : grey }} />}
@@ -488,9 +488,6 @@ export function App() {
                 <option value="user">{t("Tên người dùng")}</option>
               </Select>
             </div>
-            <div className={s.spacer} />
-            <span className={s.hint}>{t("Kéo trên vùng trống để chọn nhiều học sinh")}</span>
-            <Button size="small" style={{ flex: "none" }} disabled={selected.size !== 1} onClick={() => ui.request("remote")}>{t("Xem")}</Button>
           </div>
 
           <LessonPanel onPlan={c.plan.run} onEnd={c.endClass.run} />

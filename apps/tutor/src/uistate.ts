@@ -14,7 +14,7 @@ type Prefs = {
 const KEY = "ui-prefs2";
 const DEF: Prefs = {
   size: 140, autoFit: false, showUser: false, showGroup: true, detail: true,
-  view: "thumbs", sortKey: "name", sortDir: "asc", autoArrange: false, bgCenter: false, lessonOpen: true,
+  view: "thumbs", sortKey: "name", sortDir: "asc", autoArrange: false, bgCenter: false, lessonOpen: false,
 };
 const load = (): Prefs => { try { return { ...DEF, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") }; } catch { return DEF; } };
 

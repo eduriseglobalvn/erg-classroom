@@ -1,6 +1,10 @@
 // Run: node --experimental-strip-types tests/guardlist.test.ts
 import assert from "node:assert/strict";
-import { parseList, tryGuard } from "../src/guardlist.ts";
+import { parseList, STARTER, tryGuard } from "../src/guardlist.ts";
+
+// the starter lists survive their own parser, so Import/Export round-trips them
+assert.deepEqual(parseList(STARTER.sites.join("\n"), "site"), STARTER.sites);
+assert.deepEqual(parseList(STARTER.words.join("\n"), "word"), STARTER.words);
 
 assert.deepEqual(parseList("https://www.Facebook.com/groups?x=1\n*.garena.vn, tiktok.com\nnot a site\nfacebook.com", "site"), ["facebook.com", "*.garena.vn", "tiktok.com"]);
 assert.deepEqual(parseList("Casino\ncá   độ\nx\n<script>\ncasino", "word"), ["casino", "cá độ"]);

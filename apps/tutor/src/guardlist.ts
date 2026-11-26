@@ -10,9 +10,20 @@ export function parseList(text: string, kind: "site" | "word"): string[] {
   return [...new Set(out.filter((s) => ok.test(s)))].slice(0, 500);
 }
 
+/** What a new Tutor starts with, so the lists are not empty: common adult and betting sites and words (the 18+ list
+ *  built into the students covers far more; these show the teacher what is blocked and can be edited or removed). */
+export const STARTER: GuardLists = {
+  sites: ["pornhub.com", "xvideos.com", "xnxx.com", "xhamster.com", "onlyfans.com", "chaturbate.com", "stripchat.com",
+    "1xbet.com", "188bet.com", "fb88.com", "w88.com", "m88.com", "fun88.com", "12bet.com", "bet365.com", "stake.com"],
+  words: ["sex", "porn", "xxx", "khiêu dâm", "phim sex", "phim người lớn", "cá độ", "cá cược", "nhà cái", "đánh bạc",
+    "cờ bạc", "lô đề", "tài xỉu", "nổ hũ", "casino"],
+};
+
 export function loadGuard(): GuardLists {
   try {
-    const g = JSON.parse(localStorage.getItem(KEY) ?? "{}");
+    const raw = localStorage.getItem(KEY);
+    if (raw === null) return { sites: [...STARTER.sites], words: [...STARTER.words] };
+    const g = JSON.parse(raw);
     return { sites: Array.isArray(g.sites) ? g.sites : [], words: Array.isArray(g.words) ? g.words : [] };
   } catch {
     return { sites: [], words: [] };

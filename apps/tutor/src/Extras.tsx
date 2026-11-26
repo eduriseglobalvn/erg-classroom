@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Checkbox, Field, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, Input, Skeleton, SkeletonItem, Text, Textarea, tokens } from "@fluentui/react-components";
+import { Button, Checkbox, Field, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, Input, Skeleton, SkeletonItem, Spinner, Text, Textarea, tokens } from "@fluentui/react-components";
 import { ArrowClockwise16Regular, ArrowUp16Regular, ChevronLeft16Regular, ChevronRight16Regular, Document16Regular, Folder16Filled, Info16Regular, Warning16Regular } from "@fluentui/react-icons";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -443,7 +443,7 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
   const [obj, setObj] = useState("");
   const [outcome, setOutcome] = useState("");
   const [end, setEnd] = useState(() => hhmm(new Date(Date.now() + 45 * 60000)));
-  const [openEnded, setOpenEnded] = useState(false);
+  const [openEnded, setOpenEnded] = useState(true);
   const [register, setRegister] = useState(false);
   // the teacher's name and last lesson are remembered; the end time is always asked again
   useEffect(() => {
@@ -472,14 +472,14 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
   const tag = (bg: string, fg: string): React.CSSProperties => ({ padding: "1px 8px", borderRadius: 10, background: bg, color: fg, fontSize: 12 });
   return (
     <Dialog open onOpenChange={(_, d) => !d.open && onClose()}>
-      <DialogSurface style={{ ...D.surface, maxWidth: 1240, width: "94vw" }}>
+      <DialogSurface style={{ ...D.surface, maxWidth: 980, width: "92vw" }}>
         <DialogBody style={D.body}>
           <DlgHead title="Start a class" onClose={onClose} />
           {/* design N13: rooms and the lesson on the left, the chosen room's computers on the right */}
-          <DialogContent style={{ ...D.content, padding: 0, display: "grid", gridTemplateColumns: "minmax(380px, 480px) 1fr", height: "min(680px, 100vh - 140px)" }}>
-            <section aria-label="Start a class" style={{ display: "flex", flexDirection: "column", gap: 12, padding: "24px 28px", borderRight: "1px solid #E5E5E5", overflow: "auto" }}>
+          <DialogContent style={{ ...D.content, padding: 0, display: "grid", gridTemplateColumns: "minmax(360px, 440px) 1fr", height: "min(600px, 100vh - 140px)" }}>
+            <section aria-label="Start a class" style={{ display: "flex", flexDirection: "column", gap: 12, padding: "20px 24px", borderRight: `1px solid ${tokens.colorNeutralStroke2}`, overflow: "auto" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <h1 style={{ margin: 0, fontSize: 22, lineHeight: "30px", fontWeight: 600 }}>{hello}</h1>
+                <h1 style={{ margin: 0, fontSize: 20, lineHeight: "28px", fontWeight: 600 }}>{hello}</h1>
                 <span style={{ color: mut }}>Choose the room you are teaching in.</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
@@ -494,8 +494,8 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
                   const seen = all.filter((s) => !r || s.room === r);
                   return (
                     <div key={r} role="radio" aria-checked={on} tabIndex={0} onClick={() => !on && go(r)} onKeyDown={(e) => (e.key === " " || e.key === "Enter") && !on && go(r)}
-                      style={{ display: "flex", alignItems: "center", gap: 10, height: 52, padding: "0 12px", borderBottom: "1px solid #EDEDED", background: on ? "#E8EFFA" : "transparent", cursor: "pointer" }}>
-                      <span style={{ width: 14, height: 14, boxSizing: "border-box", borderRadius: 7, flex: "none", border: on ? `4px solid ${BLUE}` : "1px solid #8A8A8A", background: "#fff" }} />
+                      style={{ display: "flex", alignItems: "center", gap: 10, height: 48, padding: "0 12px", borderBottom: `1px solid ${tokens.colorNeutralStroke3}`, background: on ? tokens.colorBrandBackground2 : "transparent", cursor: "pointer" }}>
+                      <span style={{ width: 14, height: 14, boxSizing: "border-box", borderRadius: 7, flex: "none", border: on ? `4px solid ${BLUE}` : `1px solid ${tokens.colorNeutralStrokeAccessible}`, background: tokens.colorNeutralBackground1 }} />
                       <span style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, lineHeight: "17px" }}>
                         <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r || "All rooms on this network"}</b>
                         <span style={{ color: mut, fontSize: 12 }}>{!r ? "Every student computer that answers" : last[r] ? `Last class ${new Date(last[r]).toLocaleDateString()}` : "No class yet"}</span>
@@ -518,7 +518,7 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
                   <Button size="small" onClick={() => setEdit(null)}>Cancel</Button>
                 </div>
               )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4, alignItems: "start" }}>
                 <Field label="Lesson title (optional)" style={{ gridColumn: "1 / 3" }}><Input value={title} onChange={(_, d) => setTitle(d.value)} /></Field>
                 <Field label="Teacher"><Input value={teacher} onChange={(_, d) => setTeacher(d.value)} /></Field>
                 <Field label="Ends at" hint={openEnded ? undefined : `${minutes} min from now`}>
@@ -538,11 +538,11 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
                 }} />
               </div>
             </section>
-            <section aria-label="Computers in the chosen room" style={{ display: "flex", flexDirection: "column", gap: 12, padding: "24px 28px", background: "#FAFAFA", minWidth: 0, overflow: "auto" }}>
+            <section aria-label="Computers in the chosen room" style={{ display: "flex", flexDirection: "column", gap: 12, padding: "20px 24px", background: tokens.colorNeutralBackground2, minWidth: 0, overflow: "auto" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <b style={{ fontSize: 15 }}>{here}</b>
-                <span style={tag("#E6F2EA", "#0B5C2E")}>{all.length - off.length} of {all.length} found</span>
-                {off.length > 0 && <span style={tag("#EDEDED", "#424242")}>{off.length} switched off</span>}
+                <span style={tag(tokens.colorPaletteGreenBackground1, tokens.colorPaletteGreenForeground1)}>{all.length - off.length} of {all.length} found</span>
+                {off.length > 0 && <span style={tag(tokens.colorNeutralBackground3, tokens.colorNeutralForeground2)}>{off.length} switched off</span>}
                 <span style={{ flex: 1 }} />
                 <Button size="small" disabled={!off.length} onClick={() => invoke<number>("wake", { hosts: off }).then((n) => say(`Power-on sent to ${n} PC(s)`), (e) => fail(String(e)))}>
                   {off.length ? `Power on the ${off.length} computer${off.length > 1 ? "s" : ""}` : "Power on"}
@@ -550,15 +550,15 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))", gap: 8, alignContent: "start" }}>
                 {pcs.map((p) => (
-                  <div key={p.id} title={p.user || undefined} style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px", border: "1px solid #E5E5E5", borderRadius: 4, background: p.online ? "#FFFFFF" : "#F3F3F3", color: p.online ? "#1B1B1B" : "#5F5F5F", fontSize: 12 }}>
+                  <div key={p.id} title={p.user || undefined} style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px", border: `1px solid ${tokens.colorNeutralStroke2}`, borderRadius: 6, background: p.online ? tokens.colorNeutralBackground1 : tokens.colorNeutralBackground3, color: p.online ? tokens.colorNeutralForeground1 : tokens.colorNeutralForeground3, fontSize: 12, boxShadow: p.online ? tokens.shadow2 : "none" }}>
                     <span style={{ width: 8, height: 8, borderRadius: 4, flex: "none", background: p.online ? GREEN : GREY }} />
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.hostname}</span>
                   </div>
                 ))}
-                {!pcs.length && <span style={{ color: mut }}>Looking for student computers…</span>}
+                {!pcs.length && <Spinner size="small" label="Looking for student computers…" style={{ gridColumn: "1 / -1", padding: "48px 0" }} />}
               </div>
               <span style={{ flex: 1 }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 12, borderTop: "1px solid #E5E5E5", color: mut, fontSize: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 12, borderTop: `1px solid ${tokens.colorNeutralStroke2}`, color: mut, fontSize: 12 }}>
                 <Info16Regular />
                 <span>A computer is missing? Check that it is switched on and set to room “{room || "…"}” in the Student Configurator.</span>
               </div>

@@ -13,7 +13,7 @@ const useStyles = makeStyles({
   },
   on: { background: tokens.colorSubtleBackgroundSelected },
   popover: {
-    minWidth: "220px", maxHeight: "calc(100vh - 48px)", overflowY: "auto", borderRadius: "8px",
+    minWidth: "220px", maxHeight: "calc(100vh - 48px)", overflowY: "auto", borderRadius: "8px", boxShadow: tokens.shadow28,
     "& .fui-MenuItem": { minHeight: "28px", paddingTop: "3px", paddingBottom: "3px", fontSize: "13px" },
   },
   head: { padding: "6px 10px", fontSize: "12px", fontWeight: 600, color: tokens.colorNeutralForeground3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },

@@ -28,18 +28,21 @@ const useStyles = makeStyles({
     ":hover": { background: tokens.colorSubtleBackgroundHover },
     ":focus-visible": { outline: `2px solid ${tokens.colorStrokeFocus2}`, outlineOffset: "-2px" },
   },
-  surface: { padding: "4px", minWidth: "220px", maxWidth: "380px", borderRadius: "8px", ...shorthands.border("1px", "solid", tokens.colorNeutralStroke1) },
+  surface: { padding: "4px", minWidth: "200px", maxWidth: "320px", borderRadius: "8px", boxShadow: tokens.shadow28, ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2) },
   list: { display: "flex", flexDirection: "column", gap: "1px" },
   item: {
-    display: "flex", alignItems: "center", textAlign: "left", width: "100%", minHeight: "32px", boxSizing: "border-box",
-    padding: "4px 10px", ...shorthands.border("0"), borderRadius: tokens.borderRadiusMedium, background: "transparent", color: tokens.colorNeutralForeground1,
-    cursor: "pointer", fontFamily: "inherit",
+    display: "flex", alignItems: "center", gap: "10px", textAlign: "left", width: "100%", minHeight: "30px", boxSizing: "border-box",
+    padding: "4px 10px 4px 8px", ...shorthands.border("0"), borderRadius: tokens.borderRadiusMedium, background: "transparent", color: tokens.colorNeutralForeground1,
+    cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
     ":hover": { background: tokens.colorSubtleBackgroundHover }, ":active": { background: tokens.colorSubtleBackgroundPressed },
-    ":focus-visible": { outline: `2px solid ${tokens.colorStrokeFocus2}`, outlineOffset: "-2px" },
+    // keyboard focus shows as the hover fill, not a box around the first row when the menu opens
+    ":focus-visible": { outline: "none", background: tokens.colorSubtleBackgroundHover },
   },
+  rowIcon: { display: "grid", placeItems: "center", width: "20px", flex: "none", color: tokens.colorNeutralForeground2, "& svg": { width: "20px", height: "20px" } },
+  kbd: { marginLeft: "auto", paddingLeft: "16px", fontSize: "12px", color: tokens.colorNeutralForeground3 },
   itemOff: { opacity: 0.45, cursor: "not-allowed", ":hover": { background: "transparent" }, ":active": { background: "transparent" } },
   itemIcon: { display: "grid", placeItems: "center", color: tokens.colorBrandForeground1, "& svg": { width: "24px", height: "24px" } },
-  title: { fontSize: "13px", lineHeight: "18px", display: "flex", alignItems: "center", gap: "6px" },
+  title: { fontSize: "13px", lineHeight: "18px", display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", textOverflow: "ellipsis" },
   desc: { display: "block", fontSize: "12px", lineHeight: "16px", color: tokens.colorNeutralForeground3 },
   sep: { height: "1px", margin: "4px 0", background: tokens.colorNeutralStroke2, flex: "0 0 auto" },
   foot: { display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px", padding: "6px 8px 4px", marginTop: "2px", borderTop: `1px solid ${tokens.colorNeutralStroke2}` },
@@ -120,12 +123,11 @@ function Rows({ label, items, close }: { label: string; items: Item[]; close: ()
     <div className={s.list} role="menu" aria-label={label} {...nav}>
       {items.map((it, i) => it === "-" ? <div key={i} className={s.sep} role="separator" /> : (
         <Disabled key={i} off={it.off}>
-          <button type="button" role="menuitem" className={mergeClasses(s.item, it.off && s.itemOff)} aria-disabled={!!it.off}
+          <button type="button" role="menuitem" className={mergeClasses(s.item, it.off && s.itemOff)} aria-disabled={!!it.off} title={it.off ? undefined : it.desc}
             onClick={() => { if (it.off) return; close(); it.run?.(); }}>
-            <span>
-              <span className={s.title}>{it.title}{it.on && <Badge size="tiny" appearance="filled" color="brand" />}</span>
-              {it.desc && <span className={s.desc}>{it.desc}</span>}
-            </span>
+            {items.some((x) => x !== "-" && x.icon) && <span className={s.rowIcon}>{it.icon}</span>}
+            <span className={s.title}>{it.title}{it.on && <Badge size="tiny" appearance="filled" color="brand" />}</span>
+            {it.kbd && <span className={s.kbd}>{it.kbd}</span>}
           </button>
         </Disabled>
       ))}

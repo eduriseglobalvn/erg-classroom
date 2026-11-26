@@ -189,6 +189,26 @@ const DEF_LAUNCH: Launch[] = [
   { name: "Word", kind: "app", path: "winword.exe" }, { name: "Excel", kind: "app", path: "excel.exe" }, { name: "PowerPoint", kind: "app", path: "powerpnt.exe" },
 ];
 const KIND_ICON = { web: <Globe20Regular />, app: <Apps20Regular />, doc: <DocumentText20Regular /> };
+// letter tiles in each program's own colour (exe or document extension -> letter, colour)
+const TILE: Record<string, [string, string]> = {
+  winword: ["W", "#185ABD"], doc: ["W", "#185ABD"], docx: ["W", "#185ABD"], excel: ["X", "#107C41"], xls: ["X", "#107C41"], xlsx: ["X", "#107C41"], csv: ["X", "#107C41"],
+  powerpnt: ["P", "#C43E1C"], ppt: ["P", "#C43E1C"], pptx: ["P", "#C43E1C"], onenote: ["N", "#7719AA"], msaccess: ["A", "#A4373A"], outlook: ["O", "#0F6CBD"],
+  msedge: ["e", "#0C7CD5"], chrome: ["G", "#1A73E8"], firefox: ["F", "#E66000"], notepad: ["N", "#2B88D8"], mspaint: ["P", "#E3008C"], calc: ["=", "#4C4C4C"],
+  code: ["{}", "#007ACC"], python: ["Py", "#3776AB"], pythonw: ["Py", "#3776AB"], "scratch 3": ["S", "#FF8C1A"], scratch: ["S", "#FF8C1A"], explorer: ["E", "#F2B300"],
+  pdf: ["PDF", "#D13438"], txt: ["T", "#616161"], png: ["▣", "#8764B8"], jpg: ["▣", "#8764B8"], mp4: ["▶", "#C239B3"],
+};
+const hostOf = (p: string) => p.trim().replace(/^https?:\/\//i, "").split(/[/?#]/)[0];
+function LaunchIcon({ it }: { it: Launch }) {
+  const [bad, setBad] = useState(false);
+  const file = it.path.trim().replace(/^.*[\\/]/, "").toLowerCase();
+  const key = it.kind === "app" ? file.replace(/\.exe$/, "") : file.replace(/^.*\./, "");
+  const tile = it.kind !== "web" && TILE[key];
+  if (tile) return <span aria-hidden style={{ width: 28, height: 28, borderRadius: 6, display: "grid", placeItems: "center", background: tile[1], color: "#fff", fontWeight: 700, fontSize: tile[0].length > 2 ? 9 : 14, boxShadow: tokens.shadow4 }}>{tile[0]}</span>;
+  // the site's own icon, the globe when it has none
+  if (it.kind === "web" && !bad && hostOf(it.path)) return <img alt="" width={24} height={24} style={{ margin: 2 }} src={`https://${hostOf(it.path)}/favicon.ico`} onError={() => setBad(true)} />;
+  return <span style={{ color: tokens.colorBrandForeground1, height: 28, display: "grid", placeItems: "center" }}>{KIND_ICON[it.kind]}</span>;
+}
+const nameOf = (it: Launch) => it.name || (it.kind === "web" ? hostOf(it.path) : it.path.trim().replace(/^.*[\\/]/, ""));
 
 /** The command that starts a Quick Launch item on the students. */
 export const launchCmd = (it: Launch) => it.kind === "web"
@@ -207,10 +227,10 @@ export function QuickLaunch({ close, say, fail }: { close: () => void; say: (s: 
   const go = (it: Launch) => {
     const ids = to === "sel" ? [...selected] : null;
     if (to === "sel" && !ids?.length) return fail(t("Chọn ít nhất một máy"));
-    invoke<number>("send_command", { ids, cmd: launchCmd(it) }).then((n) => { say(`${it.name || it.path}: ${t("đã gửi tới")} ${n} ${t("máy")}`); close(); }, (e) => fail(String(e)));
+    invoke<number>("send_command", { ids, cmd: launchCmd(it) }).then((n) => { say(`${nameOf(it)}: ${t("đã gửi tới")} ${n} ${t("máy")}`); close(); }, (e) => fail(String(e)));
   };
   const saveForm = () => {
-    const it = { ...form, name: form.name.trim() || form.path.trim().replace(/^.*[\\/]/, ""), path: form.path.trim() };
+    const it = { ...form, name: form.name.trim(), path: form.path.trim() };
     keep(cur === null ? [...items, it] : items.map((x, i) => (i === cur ? it : x)));
     setCur(cur ?? items.length);
   };
@@ -228,25 +248,25 @@ export function QuickLaunch({ close, say, fail }: { close: () => void; say: (s: 
         {items.map((it, i) => (
           <button key={i} type="button" title={it.path} aria-pressed={cur === i}
             onClick={() => { setCur(i); setForm(it); }} onDoubleClick={() => go(it)}
-            onContextMenu={(e) => { e.preventDefault(); if (window.confirm(`${t("Xoá")} ${it.name}?`)) { keep(items.filter((_, j) => j !== i)); setCur(null); } }}
+            onContextMenu={(e) => { e.preventDefault(); if (window.confirm(`${t("Xoá")} ${nameOf(it)}?`)) { keep(items.filter((_, j) => j !== i)); setCur(null); } }}
             style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 2px", borderRadius: 4, cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: tokens.colorNeutralForeground1,
               border: `1px solid ${cur === i ? tokens.colorBrandStroke1 : "transparent"}`, background: cur === i ? tokens.colorBrandBackground2 : "transparent" }}>
-            <span style={{ color: tokens.colorBrandForeground1 }}>{KIND_ICON[it.kind]}</span>
-            <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</span>
+            <LaunchIcon it={it} />
+            <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nameOf(it)}</span>
           </button>
         ))}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 8, borderTop: line }}>
-        <span style={{ fontSize: 12, fontWeight: 600 }}>{cur === null ? t("Mục mới") : form.name}</span>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>{cur === null ? t("Mục mới") : nameOf(form)}</span>
         <RadioGroup layout="horizontal" value={form.kind} onChange={(_, d) => setForm({ ...form, kind: d.value as Kind })}>
           <Radio value="web" label={t("Trang web")} /><Radio value="app" label={t("Ứng dụng")} /><Radio value="doc" label={t("Tài liệu")} />
         </RadioGroup>
-        <Input size="small" aria-label={t("Tên")} placeholder={t("Tên")} value={form.name} onChange={(_, d) => setForm({ ...form, name: d.value })} />
         <div style={{ display: "flex", gap: 6 }}>
           <Input size="small" style={{ flex: 1 }} aria-label={t("Địa chỉ")} placeholder={form.kind === "web" ? "hoc10.vn" : form.kind === "app" ? "winword.exe" : "%USERPROFILE%\\Documents\\bai1.docx"}
             value={form.path} onChange={(_, d) => setForm({ ...form, path: d.value })} />
           {form.kind !== "web" && <Button size="small" onClick={() => void pickFile()}>{t("Chọn…")}</Button>}
         </div>
+        <Input size="small" aria-label={t("Tên")} placeholder={t("Tên (không bắt buộc)")} value={form.name} onChange={(_, d) => setForm({ ...form, name: d.value })} />
         {form.kind !== "web" && <span style={{ fontSize: 11, color: mut }}>{t("Đường dẫn trên máy học sinh; tên chương trình (winword.exe) hoặc %USERPROFILE%\\… đều được")}</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 8, borderTop: line }}>
