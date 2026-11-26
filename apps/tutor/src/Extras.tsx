@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Checkbox, Field, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, Input, Skeleton, SkeletonItem, Text, Textarea, tokens } from "@fluentui/react-components";
-import { ArrowUp16Regular, Desktop16Regular, Document16Regular, DocumentArrowDown20Regular, Folder16Filled, Globe16Regular, Person20Regular, Warning16Regular } from "@fluentui/react-icons";
+import { ArrowClockwise16Regular, ArrowUp16Regular, ChevronLeft16Regular, ChevronRight16Regular, Document16Regular, Folder16Filled, Info16Regular, Warning16Regular } from "@fluentui/react-icons";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -54,7 +54,9 @@ type Step = { at_s: number; label: string; command: unknown };
 export function useExtras(send: Send, say: (s: string) => void, fail: (s: string) => void) {
   const { students, selected, startShow } = useClass();
   // the app opens on New Class, as NetSupport does
-  const [dlg, setDlg] = useState<null | "wizard" | "keywords" | "plan" | "kill" | "collect" | "ask" | "design" | "teams" | "board" | "journal">("wizard");
+  const [dlg, setDlg] = useState<null | "wizard" | "keywords" | "plan" | "kill" | "collect" | "ask" | "design" | "teams" | "board" | "journal">(() => (localStorage.getItem("erg.autoRoom") === null ? "wizard" : null));
+  // "Always start in <room>" on the start screen: connect there and skip the screen
+  useEffect(() => { const r = localStorage.getItem("erg.autoRoom"); if (r !== null) useClass.getState().connect(r).catch((e) => fail(String(e))); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   const [keysOn, setKeysOn] = useState(false);
   const [scan, setScan] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -286,7 +288,7 @@ export function useExtras(send: Send, say: (s: string) => void, fail: (s: string
       {scan && <ScanView send={send} onClose={() => setScan(false)} />}
       {dist && <FileDist onClose={() => setDist(false)} say={say} fail={fail} />}
       {fm && selected.size === 1 && <FileManager id={[...selected][0]} send={send} onClose={() => setFm(false)} fail={fail} />}
-      {rc && selected.size === 1 && <RemoteView id={[...selected][0]} send={send} onClose={() => setRc(false)} />}
+      {rc && selected.size === 1 && <RemoteView key={[...selected][0]} id={[...selected][0]} onFiles={() => setFm(true)} onClose={() => setRc(false)} />}
     </>
   );
   return { node, A };
@@ -428,8 +430,6 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
   const rooms = [...new Set([...saved, room, ...all.map((s) => s.room)].filter(Boolean))].sort();
   const [edit, setEdit] = useState<null | { old: string | null; name: string }>(null);
   const go = (r: string) => connect(r).catch((e) => fail(String(e)));
-  // only rooms whose students we can see have a count ("All rooms" sees every room)
-  const count = (r: string) => { const h = all.filter((s) => !r || s.room === r); return h.length ? `${h.filter((s) => s.online).length}/${h.length}` : "–"; };
   const [last] = useState<Record<string, string>>(() => { try { return JSON.parse(localStorage.getItem("erg.roomLast") ?? "{}"); } catch { return {}; } });
   const saveEdit = () => {
     const name = edit?.name.trim();
@@ -456,47 +456,59 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
     }).catch(() => { /* no saved lesson: start empty */ });
   }, []);
   const minutes = openEnded ? 0 : Math.min(600, minutesUntil(end, new Date()));
+  const [auto, setAuto] = useState(() => localStorage.getItem("erg.autoRoom"));
+  const here = room || "All rooms";
+  const h = new Date().getHours();
+  const hello = `${h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"}${teacher.trim() ? `, ${teacher.trim()}` : ""}`;
+  const pcs = [...all].sort((x, y) => x.hostname.localeCompare(y.hostname, undefined, { numeric: true }));
+  const start = () => {
+    const objectives = obj.split("\n").map((x) => x.trim()).filter(Boolean);
+    invoke("save_doc", { name: "lesson", json: JSON.stringify({ teacher, title, objectives, outcome, minutes, end_class_when_timer_stops: false }) }).catch(() => { /* browser dev */ });
+    localStorage.setItem("erg.roomLast", JSON.stringify({ ...last, [room]: new Date().toISOString() }));
+    if (title.trim() || minutes) send({ SetLesson: { title: title.trim(), objectives, seconds_left: minutes * 60 } }).then((n) => say(`Lesson started on ${n} PC(s)`));
+    if (register) send("RequestRegister");
+    onClose();
+  };
+  const tag = (bg: string, fg: string): React.CSSProperties => ({ padding: "1px 8px", borderRadius: 10, background: bg, color: fg, fontSize: 12 });
   return (
     <Dialog open onOpenChange={(_, d) => !d.open && onClose()}>
-      <DialogSurface style={{ ...D.surface, maxWidth: 780, width: "94vw" }}>
+      <DialogSurface style={{ ...D.surface, maxWidth: 1240, width: "94vw" }}>
         <DialogBody style={D.body}>
-          <DlgHead title="New class" onClose={onClose} />
-          <DialogContent style={{ ...D.content, flexDirection: "row", gap: 20 }}>
-            <div style={{ display: "grid", gap: 10, width: 300, flex: "none", alignContent: "start" }}>
-              <Text weight="semibold">Lesson details</Text>
-              <Field label="Teacher"><Input value={teacher} onChange={(_, d) => setTeacher(d.value)} /></Field>
-              <Field label="Lesson title" required><Input autoFocus value={title} onChange={(_, d) => setTitle(d.value)} /></Field>
-              <Field label="Objectives (one per line, shown to students)"><Textarea rows={3} value={obj} onChange={(_, d) => setObj(d.value)} /></Field>
-              <Field label="Outcome"><Textarea rows={2} value={outcome} onChange={(_, d) => setOutcome(d.value)} /></Field>
-              <div style={{ display: "flex", alignItems: "start", gap: 10 }}>
-                <Field label="Ends at" hint={openEnded ? undefined : `${minutes} min from now`}>
-                  <Input type="time" disabled={openEnded} value={end} onChange={(_, d) => setEnd(d.value)} style={{ width: 120 }} />
-                </Field>
-                <Checkbox label="Open lesson (no end time)" checked={openEnded} onChange={(_, d) => setOpenEnded(!!d.checked)} style={{ marginTop: 22 }} />
+          <DlgHead title="Start a class" onClose={onClose} />
+          {/* design N13: rooms and the lesson on the left, the chosen room's computers on the right */}
+          <DialogContent style={{ ...D.content, padding: 0, display: "grid", gridTemplateColumns: "minmax(380px, 480px) 1fr", height: "min(680px, 100vh - 140px)" }}>
+            <section aria-label="Start a class" style={{ display: "flex", flexDirection: "column", gap: 12, padding: "24px 28px", borderRight: "1px solid #E5E5E5", overflow: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <h1 style={{ margin: 0, fontSize: 22, lineHeight: "30px", fontWeight: 600 }}>{hello}</h1>
+                <span style={{ color: mut }}>Choose the room you are teaching in.</span>
               </div>
-              <Checkbox label="Ask students to register their name and class" checked={register} onChange={(_, d) => setRegister(!!d.checked)} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Text weight="semibold" style={{ flex: 1 }}>Connect to</Text>
-                <Button size="small" onClick={() => setEdit({ old: null, name: "" })}>New…</Button>
-                <Button size="small" disabled={!saved.includes(room)} onClick={() => setEdit({ old: room, name: room })}>Edit</Button>
-                <Button size="small" disabled={!saved.includes(room)} onClick={() => { keep(saved.filter((x) => x !== room)); go(""); }}>Remove</Button>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                <b style={{ flex: 1 }}>Rooms</b>
+                <Button size="small" appearance="subtle" icon={<ArrowClockwise16Regular />} onClick={() => go(room)}>Search again</Button>
+                <Button size="small" onClick={() => setEdit({ old: null, name: "" })}>New room…</Button>
               </div>
-              {/* the room list: one click connects, the connected room is the highlighted one */}
-              <div role="radiogroup" aria-label="Room" style={{ ...D.box, flex: 1, minHeight: 150, display: "flex", flexDirection: "column" }}>
-                <div style={{ ...th, display: "flex", alignItems: "center", gap: 10, flex: "none", position: "static" }}><span style={{ flex: 1 }}>Room</span><span style={{ width: 70, textAlign: "right" }}>Online</span><span style={{ width: 90 }}>Last lesson</span></div>
-                {["", ...rooms].map((r) => (
-                  <button key={r} type="button" role="radio" aria-checked={r === room} onClick={() => r !== room && go(r)} title={r || "Every room on the network"}
-                    style={{ display: "flex", alignItems: "center", gap: 10, height: 30, flex: "none", padding: "0 12px", border: 0, borderBottom: `1px solid ${tokens.colorNeutralBackground4}`, textAlign: "left",
-                      background: r === room ? tokens.colorBrandBackground2 : "transparent", color: tokens.colorNeutralForeground1, font: "inherit", cursor: "pointer" }}>
-                    <span style={{ width: 14, height: 14, boxSizing: "border-box", borderRadius: 7, flex: "none", border: r === room ? `4px solid ${BLUE}` : `1px solid ${tokens.colorNeutralStrokeAccessible}`, background: tokens.colorNeutralBackground1 }} />
-                    {r ? <Desktop16Regular /> : <Globe16Regular />}
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r || "All rooms"}</span>
-                    <span style={{ width: 70, textAlign: "right", color: mut }}>{count(r)}</span>
-                    <span style={{ width: 90, color: mut }}>{last[r] ? new Date(last[r]).toLocaleDateString() : "–"}</span>
-                  </button>
-                ))}
+              {/* one click connects; the connected room is the highlighted one */}
+              <div role="radiogroup" aria-label="Rooms" style={{ ...D.box, flex: "none", maxHeight: 260 }}>
+                {[...rooms, ""].map((r) => {
+                  const on = r === room;
+                  const seen = all.filter((s) => !r || s.room === r);
+                  return (
+                    <div key={r} role="radio" aria-checked={on} tabIndex={0} onClick={() => !on && go(r)} onKeyDown={(e) => (e.key === " " || e.key === "Enter") && !on && go(r)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, height: 52, padding: "0 12px", borderBottom: "1px solid #EDEDED", background: on ? "#E8EFFA" : "transparent", cursor: "pointer" }}>
+                      <span style={{ width: 14, height: 14, boxSizing: "border-box", borderRadius: 7, flex: "none", border: on ? `4px solid ${BLUE}` : "1px solid #8A8A8A", background: "#fff" }} />
+                      <span style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0, lineHeight: "17px" }}>
+                        <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r || "All rooms on this network"}</b>
+                        <span style={{ color: mut, fontSize: 12 }}>{!r ? "Every student computer that answers" : last[r] ? `Last class ${new Date(last[r]).toLocaleDateString()}` : "No class yet"}</span>
+                      </span>
+                      {on && saved.includes(r) && <>
+                        <Button size="small" appearance="subtle" onClick={(e) => { e.stopPropagation(); setEdit({ old: r, name: r }); }}>Rename</Button>
+                        <Button size="small" appearance="subtle" onClick={(e) => { e.stopPropagation(); keep(saved.filter((x) => x !== r)); go(""); }}>Remove</Button>
+                      </>}
+                      {/* only rooms whose students we can see have a count */}
+                      {seen.length > 0 && <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: seen.some((s) => s.online) ? GREEN : GREY }} />{seen.filter((s) => s.online).length} of {seen.length} on</span>}
+                    </div>
+                  );
+                })}
               </div>
               {edit && (
                 <div style={{ display: "flex", gap: 6 }}>
@@ -506,23 +518,52 @@ function Wizard({ send, say, fail, onClose }: { send: Send; say: (s: string) => 
                   <Button size="small" onClick={() => setEdit(null)}>Cancel</Button>
                 </div>
               )}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ flex: 1 }}><Status color={all.length - off.length ? GREEN : GREY}>{room || "All rooms"}: <b>{all.length - off.length} of {all.length}</b> computers connected</Status>{off.length > 0 && <span style={{ color: mut }}> · {off.length} switched off</span>}</span>
-                <Button size="small" disabled={!off.length} onClick={() => invoke<number>("wake", { hosts: off }).then((n) => say(`Power-on sent to ${n} PC(s)`), (e) => fail(String(e)))}>Power on the room</Button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+                <Field label="Lesson title (optional)" style={{ gridColumn: "1 / 3" }}><Input value={title} onChange={(_, d) => setTitle(d.value)} /></Field>
+                <Field label="Teacher"><Input value={teacher} onChange={(_, d) => setTeacher(d.value)} /></Field>
+                <Field label="Ends at" hint={openEnded ? undefined : `${minutes} min from now`}>
+                  <Input type="time" disabled={openEnded} value={end} onChange={(_, d) => setEnd(d.value)} />
+                </Field>
               </div>
-            </div>
+              <Checkbox label="No end time" checked={openEnded} onChange={(_, d) => setOpenEnded(!!d.checked)} />
+              <Checkbox label="Ask students to register their name" checked={register} onChange={(_, d) => setRegister(!!d.checked)} />
+              <span style={{ flex: 1 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <Button appearance="primary" style={{ minWidth: 150 }} onClick={start}>Start class in {here}</Button>
+                <Button onClick={onClose}>Open without a lesson</Button>
+                <span style={{ flex: 1 }} />
+                <Checkbox label={`Always start in ${here}`} checked={auto === room && auto !== null} onChange={(_, d) => {
+                  if (d.checked) localStorage.setItem("erg.autoRoom", room); else localStorage.removeItem("erg.autoRoom");
+                  setAuto(d.checked ? room : null);
+                }} />
+              </div>
+            </section>
+            <section aria-label="Computers in the chosen room" style={{ display: "flex", flexDirection: "column", gap: 12, padding: "24px 28px", background: "#FAFAFA", minWidth: 0, overflow: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <b style={{ fontSize: 15 }}>{here}</b>
+                <span style={tag("#E6F2EA", "#0B5C2E")}>{all.length - off.length} of {all.length} found</span>
+                {off.length > 0 && <span style={tag("#EDEDED", "#424242")}>{off.length} switched off</span>}
+                <span style={{ flex: 1 }} />
+                <Button size="small" disabled={!off.length} onClick={() => invoke<number>("wake", { hosts: off }).then((n) => say(`Power-on sent to ${n} PC(s)`), (e) => fail(String(e)))}>
+                  {off.length ? `Power on the ${off.length} computer${off.length > 1 ? "s" : ""}` : "Power on"}
+                </Button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))", gap: 8, alignContent: "start" }}>
+                {pcs.map((p) => (
+                  <div key={p.id} title={p.user || undefined} style={{ display: "flex", alignItems: "center", gap: 6, height: 30, padding: "0 8px", border: "1px solid #E5E5E5", borderRadius: 4, background: p.online ? "#FFFFFF" : "#F3F3F3", color: p.online ? "#1B1B1B" : "#5F5F5F", fontSize: 12 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 4, flex: "none", background: p.online ? GREEN : GREY }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.hostname}</span>
+                  </div>
+                ))}
+                {!pcs.length && <span style={{ color: mut }}>Looking for student computers…</span>}
+              </div>
+              <span style={{ flex: 1 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 12, borderTop: "1px solid #E5E5E5", color: mut, fontSize: 12 }}>
+                <Info16Regular />
+                <span>A computer is missing? Check that it is switched on and set to room “{room || "…"}” in the Student Configurator.</span>
+              </div>
+            </section>
           </DialogContent>
-          <DialogActions style={D.foot}>
-            <Button onClick={onClose}>Cancel</Button>
-            <Button appearance="primary" disabled={!title.trim()} onClick={() => {
-              const objectives = obj.split("\n").map((x) => x.trim()).filter(Boolean);
-              invoke("save_doc", { name: "lesson", json: JSON.stringify({ teacher, title, objectives, outcome, minutes, end_class_when_timer_stops: false }) }).catch(() => { /* browser dev */ });
-              localStorage.setItem("erg.roomLast", JSON.stringify({ ...last, [room]: new Date().toISOString() }));
-              send({ SetLesson: { title: title.trim(), objectives, seconds_left: minutes * 60 } }).then((n) => say(`Lesson started on ${n} PC(s)`));
-              if (register) send("RequestRegister");
-              onClose();
-            }}>Start Lesson</Button>
-          </DialogActions>
         </DialogBody>
       </DialogSurface>
     </Dialog>
@@ -652,9 +693,13 @@ function FileManager({ id, send, onClose, fail }: { id: string; send: Send; onCl
 }
 
 /** Watch (zoomed thumbnails ~2 fps) and optionally Control (mouse + keyboard injection). */
-function RemoteView({ id, send, onClose }: { id: string; send: Send; onClose: () => void }) {
+function RemoteView({ id, onClose, onFiles }: { id: string; onClose: () => void; onFiles: () => void }) {
+  // always this student, even after Next has moved the selection (the clean-up below runs after that)
+  const send = (cmd: unknown) => invoke<number>("send_command", { ids: [id], cmd });
   const img = useClass((s) => s.students[id]?.thumb);
   const name = useClass((s) => s.students[id]?.hostname ?? "");
+  const user = useClass((s) => s.students[id]?.user ?? "");
+  const online = useClass((s) => !!s.students[id]?.online);
   const [control, setControl] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [live, setLive] = useState(false);
@@ -700,29 +745,71 @@ function RemoteView({ id, send, onClose }: { id: string; send: Send; onClose: ()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const pos = (e: React.MouseEvent) => { const r = e.currentTarget.getBoundingClientRect(); return { x: Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1), y: Math.min(Math.max((e.clientY - r.top) / r.height, 0), 1) }; };
+  // previous / next student (design N18), in the order of the computer names
+  const others = Object.values(useClass((s) => s.students)).filter((x) => x.online).map((x) => [x.id, x.hostname] as const).sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true }));
+  const at = others.findIndex(([x]) => x === id);
+  const step = (d: number) => others.length && useClass.setState({ selected: new Set([others[(at + d + others.length) % others.length][0]]) });
+  const [held, setHeld] = useState<null | "blank" | "lock">(null);
+  const hold = (k: "blank" | "lock") => { send(held === k ? "Unlock" : { Lock: { blank: k === "blank", text: k === "blank" ? "" : null } }); setHeld(held === k ? null : k); };
+  const stage = useRef<HTMLDivElement>(null);
+  const lastEsc = useRef(0);
+  const shot = () => { const d = live ? canvas.current?.toDataURL("image/png") : img; if (d) void invoke("save_snapshot", { dataUrl: d }); };
+  const tool = (label: string, run: () => void, on = false, off = false) => (
+    <Button size="small" appearance="subtle" disabled={off} onClick={run} style={on ? { background: "#E8EFFA", border: "1px solid #B9CDEE" } : undefined}>{label}</Button>
+  );
+  const sep = <span style={{ width: 1, height: 22, background: "#E0E0E0", flex: "none" }} />;
+  const cv = canvas.current;
   return (
     <Dialog open onOpenChange={(_, d) => !d.open && onClose()}>
       {/* as large as the window allows, keeping the student's screen proportions (the pointer maths needs the box to match the picture) */}
       <DialogSurface style={{ ...D.surface, maxWidth: "none", width: "fit-content" }}>
         <DialogBody style={D.body}>
-          <DlgHead title={name} sub={control && "controlling"} onClose={onClose} />
-          <DialogContent style={{ padding: 0, overflow: "hidden" }}>
-            <div tabIndex={0} style={{ outline: control ? `2px solid ${tokens.colorBrandStroke1}` : "none", outlineOffset: -2, lineHeight: 0, width: `min(96vw - 24px, (100vh - 150px) * ${ar})`, aspectRatio: ar, background: "#000" }}
+          <DlgHead title={`${name}${user ? ` · ${user}` : ""} – View`} onClose={onClose} />
+          <div role="toolbar" aria-label="View" style={{ gridColumn: "1 / 4", gridRow: 2, display: "flex", alignItems: "center", gap: 6, height: 44, padding: "0 10px", background: "#FBFBFB", borderTop: "1px solid #E5E5E5", borderBottom: "1px solid #D6D6D6" }}>
+            <div role="radiogroup" aria-label="Mode" style={{ display: "flex", padding: 2, border: "1px solid #D1D1D1", borderRadius: 5, background: "#F0F0F0" }}>
+              {(["Watch", "Control"] as const).map((m) => {
+                const on = (m === "Control") === control;
+                return <Button key={m} size="small" appearance="subtle" role="radio" aria-checked={on} onClick={() => setControl(m === "Control")} style={{ minWidth: 0, fontWeight: on ? 600 : 400, background: on ? "#FFFFFF" : undefined }}>{m}</Button>;
+              })}
+            </div>
+            {sep}
+            {tool("Full screen", () => void stage.current?.requestFullscreen().catch(() => { /* not allowed here */ }))}
+            {sep}
+            {tool("Clipboard", () => void send("RequestClipboard"))}
+            {tool("Screenshot", shot, false, !live && !img)}
+            {sep}
+            {tool("File Transfer", onFiles)}
+            {sep}
+            {tool("Blank their screen", () => hold("blank"), held === "blank")}
+            {tool("Lock keyboard and mouse", () => hold("lock"), held === "lock")}
+            <span style={{ flex: 1 }} />
+            <Button size="small" appearance="subtle" aria-label="Previous student" icon={<ChevronLeft16Regular />} disabled={others.length < 2} onClick={() => step(-1)} />
+            <span style={{ fontSize: 12, color: mut }}>{at + 1} of {others.length}</span>
+            <Button size="small" appearance="subtle" aria-label="Next student" icon={<ChevronRight16Regular />} disabled={others.length < 2} onClick={() => step(1)} />
+          </div>
+          <DialogContent style={{ gridColumn: "1 / 4", gridRow: 3, padding: 0, overflow: "hidden", background: "#1E1E1E" }}>
+            <div ref={stage} tabIndex={0} style={{ position: "relative", outline: control ? "2px solid #1F4E9E" : "none", outlineOffset: -2, lineHeight: 0, width: `min(96vw - 24px, (100vh - 220px) * ${ar})`, aspectRatio: ar, background: "#000" }}
               onMouseMove={(e) => control && send({ Input: { MouseMove: pos(e) } })}
               onMouseDown={(e) => control && send({ Input: { MouseButton: { button: Math.min(e.button, 2), down: true } } })}
               onMouseUp={(e) => control && send({ Input: { MouseButton: { button: Math.min(e.button, 2), down: false } } })}
               onWheel={(e) => control && send({ Input: { Wheel: Math.max(-32768, Math.min(32767, Math.round(-e.deltaY))) } })}
-              onKeyDown={(e) => { if (control) { e.preventDefault(); send({ Input: { Key: { vk: e.keyCode, down: true } } }); } }}
-              onKeyUp={(e) => { if (control) { e.preventDefault(); send({ Input: { Key: { vk: e.keyCode, down: false } } }); } }}>
+              onKeyDown={(e) => {
+                if (!control) return;
+                e.preventDefault(); e.stopPropagation(); // the keys belong to the student, not to this dialog
+                if (e.key === "Escape") { const n = Date.now(); if (n - lastEsc.current < 600) { setControl(false); return; } lastEsc.current = n; }
+                send({ Input: { Key: { vk: e.keyCode, down: true } } });
+              }}
+              onKeyUp={(e) => { if (control) { e.preventDefault(); e.stopPropagation(); send({ Input: { Key: { vk: e.keyCode, down: false } } }); } }}>
               <canvas ref={canvas} style={{ width: "100%", display: live ? "block" : "none" }} />
               {!live && (img ? <img src={img} alt="" style={{ width: "100%", height: "100%", userSelect: "none" }} draggable={false} /> : <Skeleton style={{ height: "100%" }}><SkeletonItem style={{ height: "100%" }} /></Skeleton>)}
+              {control && <span style={{ position: "absolute", left: 12, top: 12, padding: "2px 8px", borderRadius: 10, background: "#1F4E9E", color: "#fff", fontSize: 12, lineHeight: "18px" }}>You are controlling this computer · Esc Esc to let go</span>}
             </div>
           </DialogContent>
-          <DialogActions style={D.foot}>
-            <Button appearance={control ? "primary" : "secondary"} onClick={() => setControl(!control)}>{control ? "View only" : "Control"}</Button>
-            <Button icon={<DocumentArrowDown20Regular />} disabled={!img} onClick={() => img && invoke("save_snapshot", { dataUrl: img })}>Snapshot</Button>
-            <Button icon={<Person20Regular />} onClick={onClose}>Close</Button>
-          </DialogActions>
+          <div style={{ gridColumn: "1 / 4", gridRow: 4, display: "flex", alignItems: "center", gap: 16, height: 24, padding: "0 10px", fontSize: 12, color: mut, background: "#F3F3F3", borderTop: "1px solid #D6D6D6" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: online ? GREEN : GREY }} />{online ? "Connected" : "Not connected"}</span>
+            {live && cv && <span>{cv.width} × {cv.height}</span>}
+            <span>{live ? "Live video" : "Pictures (slower)"}</span>
+          </div>
         </DialogBody>
       </DialogSurface>
     </Dialog>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Checkbox, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Input, Skeleton, SkeletonItem, tokens } from "@fluentui/react-components";
-import { ArrowUp16Regular, ArrowSync16Regular, Dismiss16Regular, Document16Regular, Folder16Filled, LockClosed16Regular } from "@fluentui/react-icons";
+import { ArrowDown16Regular, ArrowUp16Regular, ArrowSync16Regular, Dismiss16Regular, Document16Regular, Folder16Filled, Home16Regular, LockClosed16Regular } from "@fluentui/react-icons";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useClass } from "./store";
 
 type Entry = { name: string; is_dir: boolean; size: number; modified_s: number };
@@ -54,8 +55,11 @@ type St = { done: number; bad: number; cur: string };
 /** File Transfer: folders and files of this computer on top, the receiving students below; Copy sends the ticked files to all of them. */
 export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s: string) => void; fail: (s: string) => void }) {
   const { students, selected } = useClass();
-  const to = Object.values(students).filter((s) => s.online && (selected.size === 0 || selected.has(s.id)));
+  const [whole, setWhole] = useState(false);
+  const to = Object.values(students).filter((s) => s.online && (whole || selected.size === 0 || selected.has(s.id)));
   const [path, setPath] = useState("");
+  const [home, setHome] = useState("");
+  const [filter, setFilter] = useState("");
   const [typed, setTyped] = useState("");
   const [rows, setRows] = useState<Entry[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -67,14 +71,36 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
   const [now, setNow] = useState("");
   const go = (p: string) => {
     setRows(null);
-    invoke<[string, Entry[]]>("local_dir", { path: p }).then(([real, list]) => { setPath(real); setTyped(real); setRows(list); setPicked(new Set()); },
+    invoke<[string, Entry[]]>("local_dir", { path: p }).then(([real, list]) => { if (!p) setHome(real); setPath(real); setTyped(real); setRows(list); setPicked(new Set()); },
       (e) => { fail(String(e)); setRows([]); });
   };
   useEffect(() => go(""), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // free space comes with the inventory, asked for once
+  useEffect(() => { if (to.length) void invoke("send_command", { ids: to.map((s) => s.id), cmd: "RequestInventory" }).catch(() => { /* column stays empty */ }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // right pane: one student's folder, read-only (click a student row below); asked only once the answers can be heard
+  const [ask, setAsk] = useState<{ id: string; path: string } | null>(null);
+  const [far, setFar] = useState<{ rows: Entry[] | null; msg: string }>({ rows: null, msg: "" });
+  useEffect(() => {
+    if (!ask) return;
+    setFar({ rows: null, msg: "" });
+    const a = listen<{ id: string; path: string; entries: Entry[] }>("student-dir", (e) => { if (e.payload.id === ask.id && e.payload.path === ask.path) setFar({ rows: e.payload.entries, msg: "" }); });
+    const b = listen<{ id: string; ok: boolean; message: string }>("student-fs", (e) => { if (e.payload.id === ask.id && !e.payload.ok) setFar({ rows: [], msg: e.payload.message }); });
+    void Promise.all([a, b]).then(() => invoke("send_command", { ids: [ask.id], cmd: { ListDir: ask.path } })).catch((e) => setFar({ rows: [], msg: String(e) }));
+    return () => { void a.then((f) => f()); void b.then((f) => f()); };
+  }, [ask]);
+  // shortcut: guesses the usual profile folder; a moved Documents (OneDrive) shows the error, then Up works
+  const browse = (s: (typeof to)[number]) => setAsk({ id: s.id, path: `C:\\Users\\${s.user.split("\\").pop() || ""}\\${DEST}` });
+  const farUp = () => { if (!ask) return; const q = ask.path.replace(/\\$/, ""); const i = q.lastIndexOf("\\"); if (i > 1) setAsk({ ...ask, path: i === 2 ? q.slice(0, 3) : q.slice(0, i) }); };
+  const peek = ask && students[ask.id];
+  const freeOf = (id: string) => { const d = students[id]?.inventory?.disks; const c = d?.find((x) => /^c:/i.test(x[0])) ?? d?.[0]; return c ? `${(c[2] / 2 ** 30).toFixed(c[2] < 10 * 2 ** 30 ? 1 : 0)} GB` : "–"; };
   const join = (n: string) => path.replace(/\\$/, "") + "\\" + n;
   const up = () => { const p = path.replace(/\\$/, ""); const i = p.lastIndexOf("\\"); if (i > 1) go(i === 2 ? p.slice(0, 3) : p.slice(0, i)); };
   const tick = (n: string) => setPicked((s) => { const x = new Set(s); x.has(n) ? x.delete(n) : x.add(n); return x; });
-  const files = rows?.filter((r) => !r.is_dir) ?? [];
+  // "*.docx" style patterns, or plain text anywhere in the name
+  const f = filter.trim().toLowerCase();
+  const match = (n: string) => !f || (f.includes("*") ? new RegExp(`^${f.split("*").map((x) => x.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`).test(n.toLowerCase()) : n.toLowerCase().includes(f));
+  const shown = rows?.filter((r) => r.is_dir || match(r.name)) ?? null;
+  const files = shown?.filter((r) => !r.is_dir) ?? [];
   const bytes = files.filter((f) => picked.has(f.name)).reduce((a, f) => a + f.size, 0);
   // folder pane: the folders above the open one, then the folders inside it (a network path is shown as one entry)
   const parts = path.replace(/\\$/, "").split("\\");
@@ -107,6 +133,7 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
     const text = stop.current ? `Stopped: ${ok} copies delivered, ${bad} failed` : bad ? `${names.length} file(s): ${ok} copies delivered, ${bad} failed` : `${names.length} file(s) copied to ${list.length} PC(s)`;
     setDone(text); say(text);
   };
+  const copyNow = () => void copy([...picked], to, path.replace(/\\$/, ""));
   const size = (n: number) => n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
   const list = job?.list ?? to;
   const total = job?.names.length ?? 0;
@@ -119,9 +146,22 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
       <DialogSurface style={{ ...D.surface, maxWidth: "none", width: "min(1300px, 94vw)" }}>
         <DialogBody style={D.body}>
           <DlgHead title="File Transfer" sub={`This computer → ${to.length} student${to.length === 1 ? "" : "s"}${selected.size ? "" : " (whole class)"}`} onClose={onClose} off={busy} />
-          <DialogContent style={{ padding: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr) auto", height: "calc(100vh - 170px)", overflow: "hidden", borderTop: line }}>
-            <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", minHeight: 0 }}>
+          <DialogContent style={{ padding: 0, display: "grid", gridTemplateRows: "auto minmax(0, 1fr) auto", height: "calc(100vh - 170px)", overflow: "hidden", borderTop: line }}>
+            <div role="toolbar" aria-label="File commands" style={{ display: "flex", alignItems: "center", gap: 4, height: 44, padding: "0 12px", borderBottom: line, background: tokens.colorNeutralBackground2 }}>
+              <Button appearance="primary" size="small" icon={<ArrowDown16Regular />} iconPosition="after" disabled={!picked.size || !to.length || busy} onClick={copyNow}>Copy to students</Button>
+              <span style={{ width: 1, height: 20, margin: "0 4px", background: "#E0E0E0" }} />
+              <Button appearance="subtle" size="small" disabled={!files.length} onClick={() => setPicked(new Set(files.map((x) => x.name)))}>Select all</Button>
+              <Button appearance="subtle" size="small" onClick={() => go(path)}>Refresh</Button>
+              <span style={{ flex: 1 }} />
+              <Input size="small" aria-label="Filter files" placeholder="Filter, e.g. *.docx" style={{ width: 160 }} value={filter} onChange={(_, d) => { setFilter(d.value); setPicked(new Set()); }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr) 400px", minHeight: 0 }}>
               <nav aria-label="Folders on this computer" style={{ display: "flex", flexDirection: "column", padding: "8px 6px", overflow: "auto", borderRight: line, background: tokens.colorNeutralBackground2 }}>
+                {home && ([["Home", home], ["Desktop", home + "\\Desktop"], ["Downloads", home + "\\Downloads"], ["Documents", home + "\\Documents"]] as const).map(([n, p], i) => (
+                  <Button key={n} appearance="subtle" size="small" icon={i ? <Folder16Filled style={{ color: "#B7791F" }} /> : <Home16Regular />} onClick={() => go(p)}
+                    style={{ flex: "none", justifyContent: "flex-start", minHeight: 26, paddingLeft: 6, fontWeight: 400 }}>{n}</Button>
+                ))}
+                {home && <div style={{ height: 1, flex: "none", margin: "6px 4px", background: "#E0E0E0" }} />}
                 {crumbs.map((c, i) => {
                   const here = i === crumbs.length - 1;
                   return (
@@ -154,7 +194,7 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
                     </tr></thead>
                     <tbody>
                       {rows === null && Array.from({ length: 8 }, (_, i) => <tr key={i}><td colSpan={4} style={td}><Skeleton><SkeletonItem size={16} /></Skeleton></td></tr>)}
-                      {rows?.map((r) => (
+                      {shown?.map((r) => (
                         <tr key={r.name} style={{ cursor: "default", background: picked.has(r.name) ? tokens.colorBrandBackground2 : undefined }}
                           onClick={() => !r.is_dir && tick(r.name)} onDoubleClick={() => r.is_dir && go(join(r.name))}>
                           <td style={td}>{!r.is_dir && <Checkbox aria-label={r.name} checked={picked.has(r.name)} onChange={() => tick(r.name)} onClick={(e) => e.stopPropagation()} />}</td>
@@ -176,10 +216,34 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
                   {picked.size} of {files.length} files selected{picked.size ? ` · ${size(bytes)}` : ""}
                 </div>
               </section>
+              <section aria-label={peek ? peek.hostname : "Student computer"} style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, borderLeft: line }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", height: 40, flex: "none", padding: "0 10px" }}>
+                  <Button appearance="subtle" size="small" icon={<ArrowUp16Regular />} aria-label="Up one folder" disabled={!ask} onClick={farUp} />
+                  <span style={{ fontWeight: 600, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }}>{peek ? peek.hostname : "Student computer"}</span>
+                  <Input size="small" style={{ flex: 1, minWidth: 0 }} aria-label="Folder on the student computer" readOnly value={ask?.path ?? ""} />
+                </div>
+                <div style={{ flex: 1, minHeight: 0, overflow: "auto", borderTop: line }}>
+                  {!ask && <div style={{ padding: 12, color: mut }}>Click a student below to see that computer's folder.</div>}
+                  {ask && far.rows === null && <div style={{ padding: 12 }}><Skeleton><SkeletonItem size={16} /></Skeleton></div>}
+                  {far.msg && <div style={{ padding: 12, color: RED }}>{far.msg}</div>}
+                  {ask && far.rows?.map((r) => (
+                    <div key={r.name} onDoubleClick={() => r.is_dir && setAsk({ ...ask, path: ask.path.replace(/\\$/, "") + "\\" + r.name })}
+                      style={{ display: "flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px", borderBottom: `1px solid ${tokens.colorNeutralBackground4}`, fontSize: 13 }}>
+                      {r.is_dir ? <Folder16Filled style={{ color: "#B7791F", flex: "none" }} /> : <Document16Regular style={{ flex: "none", color: mut }} />}
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.name}>{r.name}</span>
+                      <span style={{ width: 60, textAlign: "right", color: mut, fontSize: 12 }}>{r.is_dir ? "" : size(r.size)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", height: 26, flex: "none", padding: "0 12px", borderTop: line, fontSize: 12, color: mut }}>
+                  {ask && far.rows ? `${far.rows.length} items · free space ${freeOf(ask.id)}` : ""}
+                </div>
+              </section>
             </div>
             <section aria-label="Copy to" style={{ display: "flex", flexDirection: "column", height: job ? 300 : 214, borderTop: `1px solid ${tokens.colorNeutralStroke1}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, height: 38, flex: "none", padding: "0 12px", background: tokens.colorNeutralBackground2, borderBottom: line }}>
                 <span style={{ fontWeight: 600 }}>Copy to</span><span style={{ color: mut }}>{list.length} student{list.length === 1 ? "" : "s"}</span>
+                {selected.size > 0 && <Button size="small" appearance="subtle" aria-pressed={whole} disabled={busy} onClick={() => setWhole(!whole)} style={whole ? { background: "#E8EFFA" } : undefined}>Whole class</Button>}
                 <span style={{ flex: 1 }} />
                 <span title="Every student gets the files in this folder; it cannot be changed here." style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: mut }}>
                   Folder for all <LockClosed16Regular /><span style={{ color: tokens.colorNeutralForeground1 }}>{DEST}</span>
@@ -215,22 +279,24 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
               )}
               <div style={{ flex: 1, minHeight: 0, overflow: "auto", borderTop: job ? line : undefined }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                  <thead><tr><th style={{ ...th, width: 130 }}>Computer</th><th style={{ ...th, width: 190 }}>Student</th><th style={th}>Destination folder</th>{job && <th style={{ ...th, width: 130 }}>Progress</th>}<th style={{ ...th, width: 260 }}>Status</th></tr></thead>
+                  <thead><tr><th style={{ ...th, width: 130 }}>Computer</th><th style={{ ...th, width: 190 }}>Student</th><th style={th}>Destination folder</th><th style={{ ...th, width: 90, textAlign: "right" }}>Free space</th>{job && <th style={{ ...th, width: 130 }}>Progress</th>}<th style={{ ...th, width: 260 }}>Status</th></tr></thead>
                   <tbody>
                     {list.map((s) => {
                       const r = job?.st[s.id], n = r ? r.done + r.bad : 0;
                       const [text, color] = !r ? ["Ready", GREEN] : n === total ? (r.bad ? [`Failed: ${r.bad} of ${total} file(s) not delivered`, RED] : ["Copied", GREEN]) : r.cur ? [`Copying… ${r.cur}`, BLUE] : job.stopped && !busy ? ["Stopped", GREY] : ["Waiting", GREY];
                       return (
-                        <tr key={s.id} style={{ background: busy && s.id === now ? tokens.colorBrandBackground2 : undefined }}>
+                        <tr key={s.id} onClick={() => browse(s)} title="Click to see this computer's folder on the right"
+                          style={{ cursor: "pointer", background: (busy && s.id === now) || ask?.id === s.id ? tokens.colorBrandBackground2 : undefined }}>
                           <td style={td}>{s.hostname}</td>
                           <td style={td}>{s.user}</td>
                           <td style={{ ...td, color: mut }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><LockClosed16Regular />{DEST}</span></td>
+                          <td style={{ ...td, color: mut, textAlign: "right" }}>{freeOf(s.id)}</td>
                           {job && <td style={td}><Bar h={4} v={n / total} color={color} /></td>}
                           <td style={td} title={text}><Status color={color}>{text}</Status></td>
                         </tr>
                       );
                     })}
-                    {!list.length && <tr><td colSpan={4} style={{ ...td, color: mut }}>No student computers are connected.</td></tr>}
+                    {!list.length && <tr><td colSpan={5} style={{ ...td, color: mut }}>No student computers are connected.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -238,11 +304,11 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
           </DialogContent>
           <DialogActions style={D.foot}>
             <span style={{ marginRight: "auto", fontSize: 12, color: mut }}>
-              {done || (picked.size ? `${picked.size} file${picked.size === 1 ? "" : "s"} · ${size(bytes)} to each of ${to.length} student${to.length === 1 ? "" : "s"} · ${size(bytes * to.length)} in total` : "Tick the files to copy")}
+              {done || (picked.size ? `${picked.size} file${picked.size === 1 ? "" : "s"} · ${size(bytes)} to each of ${to.length} student${to.length === 1 ? "" : "s"} · ${size(bytes * to.length)} in total` : "Tick the files to copy · click a student row to see that computer's folder")}
             </span>
             {busy && <Button disabled={job?.stopped} onClick={() => { stop.current = true; setJob((j) => j && { ...j, stopped: true }); }}>Stop</Button>}
             {retry.length > 0 && job && <Button onClick={() => void copy(job.names, retry, job.dir)}>Retry {retry.length} failed</Button>}
-            <Button appearance="primary" style={{ minWidth: 140 }} disabled={!picked.size || !to.length || busy} onClick={() => void copy([...picked], to, path.replace(/\\$/, ""))}>
+            <Button appearance="primary" style={{ minWidth: 140 }} disabled={!picked.size || !to.length || busy} onClick={copyNow}>
               {busy ? "Copying…" : `Copy to ${to.length} student${to.length === 1 ? "" : "s"}`}
             </Button>
             <Button style={{ minWidth: 80 }} disabled={busy} onClick={onClose}>Close</Button>
