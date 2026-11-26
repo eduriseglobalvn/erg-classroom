@@ -8,8 +8,10 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="ERG Classroom" Manufacturer="ERG" Version="$(var.Version)" UpgradeCode="6f1d2c1e-7b0a-4a52-9d3e-3c1f5a7b9e21" Scope="perMachine">
     <!-- AllowSameVersionUpgrades: a rebuild of the same version replaces the old one instead of installing next to it.
-         afterInstallInitialize: the old version is removed inside the transaction, so KeepConfig can run (as SYSTEM) before it. -->
-    <MajorUpgrade AllowSameVersionUpgrades="yes" Schedule="afterInstallInitialize" DowngradeErrorMessage="A newer version is installed." />
+         afterInstallExecute: the new files go in first, then the old version is removed (its components are shared, so they
+         stay, and since 0.2.0 its removal leaves %ProgramData%\ERGClassroom alone). afterInstallInitialize would need the
+         removal to come before every deferred action: StopOld before it gave error 2613. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" Schedule="afterInstallExecute" DowngradeErrorMessage="A newer version is installed." />
     <MediaTemplate EmbedCab="yes" />
     <Property Id="ROOM" Value="default" Secure="yes" />
     <Property Id="ROOMKEY" Secure="yes" Hidden="yes" />
@@ -114,11 +116,6 @@
       ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]write-config.ps1&quot; -Key &quot;[ROOMKEY]&quot; -Room &quot;[ROOM]&quot; -Gateway &quot;[GATEWAY]&quot; -Agent &quot;[INSTALLFOLDER]erg-student-agent.exe&quot; -AllowPower &quot;[ALLOWPOWER]&quot; -Upgrade &quot;[WIX_UPGRADE_DETECTED]&quot;" />
     <CustomAction Id="RemoveConfig" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
       ExeCommand="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]write-config.ps1&quot; -Remove" />
-    <!-- Upgrade: versions up to 0.1 delete %ProgramData%\ERGClassroom when they are removed, so the room and the key are
-         copied aside first (/SEC keeps room.key readable by SYSTEM and administrators only); write-config.ps1 puts them back.
-         A leftover .keep folder is deleted first: a student could have planted one. -->
-    <CustomAction Id="KeepConfig" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="check"
-      ExeCommand="cmd.exe /c &quot;rmdir /s /q &quot;[CommonAppDataFolder]ERGClassroom.keep&quot; &amp; (if exist &quot;[CommonAppDataFolder]ERGClassroom\room.key&quot; robocopy &quot;[CommonAppDataFolder]ERGClassroom&quot; &quot;[CommonAppDataFolder]ERGClassroom.keep&quot; room.key config.txt /SEC /R:1 /W:1) &amp; if errorlevel 8 (exit 1) else (exit 0)&quot;" />
     <!-- Upgrade: the student program runs in the student's session and would keep its exe in use (= "restart needed").
          Stop the service first, or it starts the program again. -->
     <CustomAction Id="StopOld" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
@@ -128,8 +125,7 @@
       ExeCommand="sc.exe failure ERGStudent reset= 60 actions= restart/2000/restart/2000/restart/2000" />
     <InstallExecuteSequence>
       <Custom Action="SvcRecovery" After="InstallServices" Condition="&amp;Student=3" />
-      <Custom Action="KeepConfig" Before="StopOld" Condition="WIX_UPGRADE_DETECTED" />
-      <Custom Action="StopOld" Before="RemoveExistingProducts" Condition="WIX_UPGRADE_DETECTED" />
+      <Custom Action="StopOld" Before="RemoveFiles" Condition="WIX_UPGRADE_DETECTED" />
       <Custom Action="InstallWebView2" After="InstallFiles" Condition="NOT WEBVIEW2 AND NOT Installed" />
       <Custom Action="WriteConfig" After="InstallFiles" Condition="&amp;Student=3" />
       <Custom Action="RemoveConfig" Before="RemoveFiles" Condition="&amp;Student=2 AND NOT UPGRADINGPRODUCTCODE" />
