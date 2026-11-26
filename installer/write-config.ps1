@@ -7,6 +7,8 @@ if ($Remove) { Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue; 
 # Upgrade: the MSI (KeepConfig) saved the old room.key and config.txt here before the old version deleted the data folder.
 # They win over the command line, so an update never moves a computer to another room. Ignored on a fresh install.
 $keep = "$data.keep"
+# no saved copy (the old version kept its data folder): the files still in place win the same way
+if ($Upgrade -and -not (Test-Path "$keep\room.key") -and (Test-Path "$data\room.key")) { $keep = $data }
 if ($Upgrade -and (Test-Path "$keep\room.key")) { $Key = (Get-Content "$keep\room.key" -Raw).Trim() }
 # no ROOMKEY given: the built-in key, same bytes as DEFAULT_ROOM_KEY in crates\net\src\lib.rs
 if (-not $Key) { $Key = -join ([Text.Encoding]::ASCII.GetBytes('ERG Classroom default room key 1') | ForEach-Object { $_.ToString('x2') }) }
@@ -28,7 +30,7 @@ if ($bad) { Remove-Item $kf -Force; throw 'room.key ACL is too open.' }
 $cfg = "room=$Room`r`n"; if ($Gateway) { $cfg += "gateway=$Gateway`r`n" }
 if ($AllowPower -eq '1') { $cfg += "allow_power=1`r`n" }
 if ($Upgrade -and (Test-Path "$keep\config.txt")) { $cfg = [IO.File]::ReadAllText("$keep\config.txt") }
-Remove-Item $keep -Recurse -Force -ErrorAction SilentlyContinue
+if ($keep -ne $data) { Remove-Item $keep -Recurse -Force -ErrorAction SilentlyContinue }
 # not Set-Content -Encoding utf8: Windows PowerShell adds a BOM, which older agents read as part of the name "room"
 [IO.File]::WriteAllText((Join-Path $data 'config.txt'), $cfg)
 Set-Content -Path (Join-Path $data 'agent.path') -Value $Agent -Encoding ascii

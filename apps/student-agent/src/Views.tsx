@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button, Card, Input, Text, tokens } from "@fluentui/react-components";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { lang, t } from "./i18n";
 
 const w = (vi: string, en: string) => (lang === "en" ? en : vi);
@@ -126,24 +127,28 @@ export function MessageView({ text, seconds }: { text: string; seconds: number }
 /** Teacher's chat line with a reply box. Stays open until the student closes it. */
 export function ChatView({ text }: { text: string }) {
   const [reply, setReply] = useState("");
-  const [log, setLog] = useState<string[]>([]);
+  // me: the student's own line; the teacher's later lines arrive as "chat" events on this one window
+  const [log, setLog] = useState<{ me: boolean; text: string }[]>(() => (text ? [{ me: false, text }] : []));
+  useEffect(() => {
+    const un = listen<string>("chat", (e) => setLog((l) => [...l, { me: false, text: e.payload }]));
+    return () => void un.then((f) => f());
+  }, []);
   const send = async () => {
     const t = reply.trim();
     if (t && (await invoke<boolean>("chat_say", { text: t }))) {
-      setLog((l) => [...l, t]);
+      setLog((l) => [...l, { me: true, text: t }]);
       setReply("");
     }
   };
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#fff", color: "#1B1B1B", fontSize: 13 }}>
       <div style={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", gap: 10, padding: 12, background: "#F7F7F7", borderBottom: "1px solid #E5E5E5" }}>
-        {text && (
-          <div style={{ alignSelf: "flex-start", maxWidth: 250 }}>
-            <div style={{ fontSize: 12, color: "#5F5F5F", marginBottom: 2 }}>{t("Giáo viên")}</div>
-            <div style={{ ...bubble, borderRadius: "8px 8px 8px 2px", background: "#fff", border: "1px solid #E0E0E0" }}>{text}</div>
-          </div>
-        )}
-        {log.map((l, i) => <div key={i} style={{ ...bubble, alignSelf: "flex-end", maxWidth: 250, borderRadius: "8px 8px 2px 8px", background: "#1F4E9E", color: "#fff" }}>{l}</div>)}
+        {log.map((l, i) => l.me
+          ? <div key={i} style={{ ...bubble, alignSelf: "flex-end", maxWidth: 250, borderRadius: "8px 8px 2px 8px", background: "#1F4E9E", color: "#fff" }}>{l.text}</div>
+          : <div key={i} style={{ alignSelf: "flex-start", maxWidth: 250 }}>
+              <div style={{ fontSize: 12, color: "#5F5F5F", marginBottom: 2 }}>{t("Giáo viên")}</div>
+              <div style={{ ...bubble, borderRadius: "8px 8px 8px 2px", background: "#fff", border: "1px solid #E0E0E0" }}>{l.text}</div>
+            </div>)}
       </div>
       <div style={{ display: "flex", gap: 8, flex: "none", padding: "10px 12px" }}>
         <Input style={{ flex: 1, minWidth: 0 }} value={reply} aria-label={t("Trả lời…")} placeholder={t("Trả lời…")} onChange={(_, d) => setReply(d.value)} onKeyDown={(e) => e.key === "Enter" && send()} />

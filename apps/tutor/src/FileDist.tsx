@@ -77,14 +77,14 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
   useEffect(() => go(""), []); // eslint-disable-line react-hooks/exhaustive-deps
   // free space comes with the inventory, asked for once
   useEffect(() => { if (to.length) void invoke("send_command", { ids: to.map((s) => s.id), cmd: "RequestInventory" }).catch(() => { /* column stays empty */ }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // right pane: one student's folder, read-only (click a student row below); asked only once the answers can be heard
+  // right pane: one student's folder (click a student row below); asked only once the answers can be heard
   const [ask, setAsk] = useState<{ id: string; path: string } | null>(null);
   const [far, setFar] = useState<{ rows: Entry[] | null; msg: string }>({ rows: null, msg: "" });
   useEffect(() => {
     if (!ask) return;
     setFar({ rows: null, msg: "" });
     const a = listen<{ id: string; path: string; entries: Entry[] }>("student-dir", (e) => { if (e.payload.id === ask.id && e.payload.path === ask.path) setFar({ rows: e.payload.entries, msg: "" }); });
-    const b = listen<{ id: string; ok: boolean; message: string }>("student-fs", (e) => { if (e.payload.id === ask.id && !e.payload.ok) setFar({ rows: [], msg: e.payload.message }); });
+    const b = listen<{ id: string; ok: boolean; message: string }>("student-fs", (e) => { if (e.payload.id === ask.id) e.payload.ok ? setAsk({ ...ask }) : setFar({ rows: [], msg: e.payload.message }); }); // ok: list again
     void Promise.all([a, b]).then(() => invoke("send_command", { ids: [ask.id], cmd: { ListDir: ask.path } })).catch((e) => setFar({ rows: [], msg: String(e) }));
     return () => { void a.then((f) => f()); void b.then((f) => f()); };
   }, [ask]);
@@ -92,6 +92,8 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
   const browse = (s: (typeof to)[number]) => setAsk({ id: s.id, path: `C:\\Users\\${s.user.split("\\").pop() || ""}\\${DEST}` });
   const farUp = () => { if (!ask) return; const q = ask.path.replace(/\\$/, ""); const i = q.lastIndexOf("\\"); if (i > 1) setAsk({ ...ask, path: i === 2 ? q.slice(0, 3) : q.slice(0, i) }); };
   const peek = ask && students[ask.id];
+  const farDo = (cmd: unknown) => ask && void invoke("send_command", { ids: [ask.id], cmd }).catch((e) => fail(String(e)));
+  const farAt = (n: string) => (ask?.path ?? "").replace(/\\$/, "") + "\\" + n;
   const freeOf = (id: string) => { const d = students[id]?.inventory?.disks; const c = d?.find((x) => /^c:/i.test(x[0])) ?? d?.[0]; return c ? `${(c[2] / 2 ** 30).toFixed(c[2] < 10 * 2 ** 30 ? 1 : 0)} GB` : "–"; };
   const join = (n: string) => path.replace(/\\$/, "") + "\\" + n;
   const up = () => { const p = path.replace(/\\$/, ""); const i = p.lastIndexOf("\\"); if (i > 1) go(i === 2 ? p.slice(0, 3) : p.slice(0, i)); };
@@ -221,6 +223,7 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
                   <Button appearance="subtle" size="small" icon={<ArrowUp16Regular />} aria-label="Up one folder" disabled={!ask} onClick={farUp} />
                   <span style={{ fontWeight: 600, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }}>{peek ? peek.hostname : "Student computer"}</span>
                   <Input size="small" style={{ flex: 1, minWidth: 0 }} aria-label="Folder on the student computer" readOnly value={ask?.path ?? ""} />
+                  <Button appearance="subtle" size="small" disabled={!ask} onClick={() => { const n = window.prompt("New folder name"); if (n?.trim()) farDo({ MakeDir: farAt(n.trim()) }); }}>New folder</Button>
                 </div>
                 <div style={{ flex: 1, minHeight: 0, overflow: "auto", borderTop: line }}>
                   {!ask && <div style={{ padding: 12, color: mut }}>Click a student below to see that computer's folder.</div>}
@@ -232,6 +235,8 @@ export function FileDist({ onClose, say, fail }: { onClose: () => void; say: (s:
                       {r.is_dir ? <Folder16Filled style={{ color: "#B7791F", flex: "none" }} /> : <Document16Regular style={{ flex: "none", color: mut }} />}
                       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.name}>{r.name}</span>
                       <span style={{ width: 60, textAlign: "right", color: mut, fontSize: 12 }}>{r.is_dir ? "" : size(r.size)}</span>
+                      <Button appearance="subtle" size="small" style={{ minWidth: 0 }} onClick={() => { const n = window.prompt("New name", r.name)?.trim(); if (n && n !== r.name) farDo({ RenamePath: { from: farAt(r.name), to: farAt(n) } }); }}>Rename</Button>
+                      <Button appearance="subtle" size="small" style={{ minWidth: 0 }} onClick={() => window.confirm(`Delete ${r.name} on ${peek ? peek.hostname : "the student computer"}?`) && farDo({ DeletePath: farAt(r.name) })}>Delete</Button>
                     </div>
                   ))}
                 </div>

@@ -753,6 +753,10 @@ function RemoteView({ id, onClose, onFiles }: { id: string; onClose: () => void;
   const hold = (k: "blank" | "lock") => { send(held === k ? "Unlock" : { Lock: { blank: k === "blank", text: k === "blank" ? "" : null } }); setHeld(held === k ? null : k); };
   const stage = useRef<HTMLDivElement>(null);
   const lastEsc = useRef(0);
+  const [fit, setFit] = useState(true); // off: the student's screen pixel for pixel, with scroll bars
+  const [sharing, setSharing] = useState(false);
+  const [chat, setChat] = useState(false);
+  const share = () => { const on = !sharing; invoke(on ? "start_exhibit" : "stop_exhibit", on ? { exhibitor: id } : {}).then(() => setSharing(on), () => { /* stays as it was */ }); };
   const shot = () => { const d = live ? canvas.current?.toDataURL("image/png") : img; if (d) void invoke("save_snapshot", { dataUrl: d }); };
   const tool = (label: string, run: () => void, on = false, off = false) => (
     <Button size="small" appearance="subtle" disabled={off} onClick={run} style={on ? { background: "#E8EFFA", border: "1px solid #B9CDEE" } : undefined}>{label}</Button>
@@ -774,6 +778,10 @@ function RemoteView({ id, onClose, onFiles }: { id: string; onClose: () => void;
             </div>
             {sep}
             {tool("Full screen", () => void stage.current?.requestFullscreen().catch(() => { /* not allowed here */ }))}
+            {tool("Fit", () => setFit(!fit), fit)}
+            {sep}
+            {tool("Share", share, sharing, !online)}
+            {tool("Chat", () => setChat(true), false, !online)}
             {sep}
             {tool("Clipboard", () => void send("RequestClipboard"))}
             {tool("Screenshot", shot, false, !live && !img)}
@@ -787,8 +795,8 @@ function RemoteView({ id, onClose, onFiles }: { id: string; onClose: () => void;
             <span style={{ fontSize: 12, color: mut }}>{at + 1} of {others.length}</span>
             <Button size="small" appearance="subtle" aria-label="Next student" icon={<ChevronRight16Regular />} disabled={others.length < 2} onClick={() => step(1)} />
           </div>
-          <DialogContent style={{ gridColumn: "1 / 4", gridRow: 3, padding: 0, overflow: "hidden", background: "#1E1E1E" }}>
-            <div ref={stage} tabIndex={0} style={{ position: "relative", outline: control ? "2px solid #1F4E9E" : "none", outlineOffset: -2, lineHeight: 0, width: `min(96vw - 24px, (100vh - 220px) * ${ar})`, aspectRatio: ar, background: "#000" }}
+          <DialogContent style={{ gridColumn: "1 / 4", gridRow: 3, padding: 0, overflow: fit ? "hidden" : "auto", maxWidth: "calc(96vw - 24px)", maxHeight: "calc(100vh - 220px)", background: "#1E1E1E" }}>
+            <div ref={stage} tabIndex={0} style={{ position: "relative", outline: control ? "2px solid #1F4E9E" : "none", outlineOffset: -2, lineHeight: 0, width: fit || !cv ? `min(96vw - 24px, (100vh - 220px) * ${ar})` : cv.width, aspectRatio: ar, background: "#000" }}
               onMouseMove={(e) => control && send({ Input: { MouseMove: pos(e) } })}
               onMouseDown={(e) => control && send({ Input: { MouseButton: { button: Math.min(e.button, 2), down: true } } })}
               onMouseUp={(e) => control && send({ Input: { MouseButton: { button: Math.min(e.button, 2), down: false } } })}
@@ -811,6 +819,7 @@ function RemoteView({ id, onClose, onFiles }: { id: string; onClose: () => void;
             <span>{live ? "Live video" : "Pictures (slower)"}</span>
           </div>
         </DialogBody>
+      {chat && <TextDialog title={`Chat with ${name}`} hint="Message" rows={3} onOk={(v) => { if (v.trim()) void send({ Chat: v.trim() }); setChat(false); }} onClose={() => setChat(false)} />}
       </DialogSurface>
     </Dialog>
   );

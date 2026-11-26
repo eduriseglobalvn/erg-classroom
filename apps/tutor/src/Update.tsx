@@ -38,7 +38,7 @@ export function UpdateBar({ say, fail }: { say: (s: string) => void; fail: (s: s
   const old = Object.values(students).filter((x) => x.online && x.outdated);
   const tutorBar = release && !later && (
     <MessageBar intent="info" shape="square">
-      <MessageBarBody>{t("Có phiên bản mới")} {release}. {t("Tải ERGClassroom.msi để cập nhật máy này và ERGClassroom-update-….msi để cập nhật máy học sinh.")}</MessageBarBody>
+      <MessageBarBody>{t("Có phiên bản mới")} {release}. {t("Tải ERGClassroom.msi: cùng một tệp cập nhật máy này và máy học sinh.")}</MessageBarBody>
       <MessageBarActions>
         <Button size="small" appearance="primary" onClick={() => void invoke("open_releases").catch((e) => fail(String(e)))}>{t("Tải về")}</Button>
         <Button size="small" onClick={() => setLater(true)}>{t("Để sau")}</Button>
@@ -50,7 +50,7 @@ export function UpdateBar({ say, fail }: { say: (s: string) => void; fail: (s: s
     const f = await open({ multiple: false, filters: [{ name: "ERG Classroom update", extensions: ["msi"] }] });
     if (!f || Array.isArray(f)) return;
     // the student service installs whatever this Tutor signs: do not let a wrong file through by accident
-    if (!/[\\/]ERGClassroom[^\\/]*\.msi$/i.test(f)) return fail(t("Hãy chọn gói cập nhật ERGClassroom-update-….msi"));
+    if (!/[\\/]ERGClassroom[^\\/]*\.msi$/i.test(f)) return fail(t("Hãy chọn tệp ERGClassroom.msi"));
     if (!window.confirm(`${t("Cập nhật")} ${old.length} ${t("máy")}?\n${t("Các máy này sẽ mất kết nối khoảng một phút rồi tự vào lại. Máy đang đóng băng (Deep Freeze) sẽ quay về bản cũ sau khi khởi động lại.")}\n${f}`)) return;
     setBusy(true);
     try {

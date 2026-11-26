@@ -70,11 +70,8 @@
     <Property Id="WEBVIEW2">
       <RegistrySearch Id="Wv2Machine" Root="HKLM" Key="SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" Name="pv" Type="raw" Bitness="always32" />
     </Property>
-    <!-- -d Lite=1 (the update package sent over the LAN): no WebView2 inside, 15 MB instead of 300 MB -->
-    <?ifndef Lite?>
     <Binary Id="Wv2Setup" SourceFile="MicrosoftEdgeWebView2RuntimeInstallerX64.exe" />
     <CustomAction Id="InstallWebView2" BinaryRef="Wv2Setup" ExeCommand="/silent /install" Execute="deferred" Impersonate="no" Return="ignore" />
-    <?endif?>
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="ERGClassroom">
@@ -120,8 +117,8 @@
     <!-- Upgrade: versions up to 0.1 delete %ProgramData%\ERGClassroom when they are removed, so the room and the key are
          copied aside first (/SEC keeps room.key readable by SYSTEM and administrators only); write-config.ps1 puts them back.
          A leftover .keep folder is deleted first: a student could have planted one. -->
-    <CustomAction Id="KeepConfig" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
-      ExeCommand="cmd.exe /c &quot;rmdir /s /q &quot;[CommonAppDataFolder]ERGClassroom.keep&quot; &amp; if exist &quot;[CommonAppDataFolder]ERGClassroom\room.key&quot; robocopy &quot;[CommonAppDataFolder]ERGClassroom&quot; &quot;[CommonAppDataFolder]ERGClassroom.keep&quot; room.key config.txt /SEC /R:1 /W:1&quot;" />
+    <CustomAction Id="KeepConfig" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="check"
+      ExeCommand="cmd.exe /c &quot;rmdir /s /q &quot;[CommonAppDataFolder]ERGClassroom.keep&quot; &amp; (if exist &quot;[CommonAppDataFolder]ERGClassroom\room.key&quot; robocopy &quot;[CommonAppDataFolder]ERGClassroom&quot; &quot;[CommonAppDataFolder]ERGClassroom.keep&quot; room.key config.txt /SEC /R:1 /W:1) &amp; if errorlevel 8 (exit 1) else (exit 0)&quot;" />
     <!-- Upgrade: the student program runs in the student's session and would keep its exe in use (= "restart needed").
          Stop the service first, or it starts the program again. -->
     <CustomAction Id="StopOld" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
@@ -133,9 +130,7 @@
       <Custom Action="SvcRecovery" After="InstallServices" Condition="&amp;Student=3" />
       <Custom Action="KeepConfig" Before="StopOld" Condition="WIX_UPGRADE_DETECTED" />
       <Custom Action="StopOld" Before="RemoveExistingProducts" Condition="WIX_UPGRADE_DETECTED" />
-      <?ifndef Lite?>
       <Custom Action="InstallWebView2" After="InstallFiles" Condition="NOT WEBVIEW2 AND NOT Installed" />
-      <?endif?>
       <Custom Action="WriteConfig" After="InstallFiles" Condition="&amp;Student=3" />
       <Custom Action="RemoveConfig" Before="RemoveFiles" Condition="&amp;Student=2 AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>

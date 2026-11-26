@@ -27,12 +27,10 @@ try {
   # the version lives in one place: [workspace.package] in Cargo.toml
   if ((Get-Content "$root\Cargo.toml" -Raw) -notmatch '(?m)^version = "(\d+\.\d+\.\d+)"') { throw 'no version in Cargo.toml' }
   $ver = $Matches[1]
-  # full installer (first install, carries WebView2) and the small update package the Tutor sends to students
-  foreach ($b in @(@("$PSScriptRoot\ERGClassroom.msi"), @("$PSScriptRoot\ERGClassroom-update-$ver.msi", '-d', 'Lite=1'))) {
-    $out, $extra = $b
-    wix build "$PSScriptRoot\student.wxs" -o $out -d "Version=$ver" @extra -ext WixToolset.Firewall.wixext -ext WixToolset.UI.wixext `
-      -bindpath "$rel" -bindpath "$PSScriptRoot" -arch x64
-    if ($LASTEXITCODE) { throw 'wix build failed' }
-    "Built $out"
-  }
+  # one installer for every computer: first install, teacher update and the package the Tutor sends to students
+  $out = "$PSScriptRoot\ERGClassroom.msi"
+  wix build "$PSScriptRoot\student.wxs" -o $out -d "Version=$ver" -ext WixToolset.Firewall.wixext -ext WixToolset.UI.wixext `
+    -bindpath "$rel" -bindpath "$PSScriptRoot" -arch x64
+  if ($LASTEXITCODE) { throw 'wix build failed' }
+  "Built $out"
 } finally { Pop-Location }

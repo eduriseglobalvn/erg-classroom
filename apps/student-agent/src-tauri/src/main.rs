@@ -93,18 +93,25 @@ impl Agent {
         let _ = self.app.emit("lesson", l);
     }
 
+    // destroy, not close: Alt+F4 on a lock window is refused in CloseRequested, the agent's own closes must still work
     fn close(&self, label: &str) {
         if let Some(w) = self.app.get_webview_window(label) {
-            let _ = w.close();
+            let _ = w.destroy();
         }
     }
 
     fn open_fullscreen(&self, label: &str, query: &str, translucent: bool) {
+        self.open_on(label, query, translucent, None);
+    }
+
+    /// Full screen on the monitor at `at` (physical position), or on the primary one.
+    fn open_on(&self, label: &str, query: &str, translucent: bool, at: Option<tauri::PhysicalPosition<i32>>) {
         if self.app.get_webview_window(label).is_some() {
             return;
         }
         let mut b = WebviewWindowBuilder::new(&self.app, label, WebviewUrl::App(format!("index.html?{query}").into()))
-            .fullscreen(true)
+            .fullscreen(at.is_none())
+            .visible(at.is_none())
             .always_on_top(true)
             .decorations(false)
             .skip_taskbar(true)
@@ -112,8 +119,25 @@ impl Agent {
         if translucent {
             b = b.transparent(true).effects(EffectsBuilder::new().effect(Effect::Acrylic).build());
         }
-        if let Err(e) = b.build() {
-            eprintln!("cannot open {label}: {e}");
+        match b.build() {
+            Err(e) => eprintln!("cannot open {label}: {e}"),
+            // physical position: the builder's logical one is off on a second screen with another scale
+            Ok(w) => if let Some(p) = at {
+                let _ = w.set_position(tauri::PhysicalPosition::new(p.x + 8, p.y + 8));
+                let _ = w.set_fullscreen(true);
+                let _ = w.show();
+            },
+        }
+    }
+
+    /// The lock covers every screen: "lock" on the primary one, "lock~N" on the others.
+    fn lock_all(&self, query: &str, translucent: bool) {
+        self.open_fullscreen("lock", query, translucent);
+        let primary = self.app.primary_monitor().ok().flatten().map(|m| *m.position());
+        for (i, m) in self.app.available_monitors().unwrap_or_default().iter().enumerate() {
+            if Some(*m.position()) != primary {
+                self.open_on(&format!("lock~{i}"), query, translucent, Some(*m.position()));
+            }
         }
     }
 }
@@ -167,10 +191,19 @@ impl Executor for Agent {
             eprintln!("cannot open poll: {e}");
         }
     }
+    // one chat window: a new line goes to the open one
     fn chat(&self, text: &str) {
-        let n = self.msg_counter.fetch_add(1, Ordering::Relaxed);
+        use tauri::Emitter;
+        if let Some(w) = self.app.get_webview_window("chat") {
+            if !text.is_empty() {
+                let _ = w.emit("chat", text);
+            }
+            let _ = w.unminimize();
+            let _ = w.set_focus();
+            return;
+        }
         let url = format!("index.html?view=chat&text={}", pct(text));
-        let r = WebviewWindowBuilder::new(&self.app, format!("chat-{n}"), WebviewUrl::App(url.into()))
+        let r = WebviewWindowBuilder::new(&self.app, "chat", WebviewUrl::App(url.into()))
             .title(erg_student_core::i18n::t("chat"))
             .inner_size(380.0, 470.0)
             .always_on_top(true)
@@ -201,10 +234,14 @@ impl Executor for Agent {
 
     fn lock(&self, blank: bool, text: Option<&str>) {
         let q = format!("view=lock&blank={}&text={}", blank as u8, pct(text.unwrap_or("")));
-        self.open_fullscreen("lock", &q, !blank);
+        self.lock_all(&q, !blank);
     }
     fn unlock(&self) {
-        self.close("lock");
+        for (label, w) in self.app.webview_windows() {
+            if label == "lock" || label.starts_with("lock~") {
+                let _ = w.destroy();
+            }
+        }
     }
 
     fn power(&self, action: PowerAction) {
@@ -682,7 +719,7 @@ fn main() {
                             Some(kind) if title != last => {
                                 if st.violation(kind, &exe, &title) {
                                     let q = format!("view=lock&warn={kind}&app={}&text={}", pct(&exe), pct(&title));
-                                    ag.open_fullscreen("lock", &q, false);
+                                    ag.lock_all(&q, false);
                                     last = title;
                                 }
                             }
@@ -736,11 +773,11 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("error building the student agent");
     // The agent has no permanent window: closing the Show/lock window must not end the process.
-    app.run(move |_, event| {
-        if let RunEvent::ExitRequested { api, code, .. } = event {
-            if code.is_none() && !configure {
-                api.prevent_exit();
-            }
-        }
+    app.run(move |_, event| match event {
+        RunEvent::ExitRequested { api, code, .. } if code.is_none() && !configure => api.prevent_exit(),
+        // Alt+F4 must not end a lock, a test or the teacher's show: only the teacher (Agent::close) ends them
+        RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { api, .. }, .. }
+            if label == "show" || label == "test" || label.starts_with("lock") => api.prevent_close(),
+        _ => {}
     });
 }

@@ -601,16 +601,19 @@ pub async fn run_with(cfg: Config, student: Arc<Student>, ready: Option<tokio::s
     });
     let auth: Arc<dyn StudentAuth> = AUTH.get().cloned().unwrap_or_else(|| Arc::new(cfg.key));
     let inbox = cfg.inbox;
+    let live = Arc::new(std::sync::atomic::AtomicUsize::new(0)); // authenticated tutors connected now
     while let Some(incoming) = ep.accept().await {
         let student = student.clone();
         let inbox = inbox.clone();
         let auth = auth.clone();
+        let live = live.clone();
         tokio::spawn(async move {
             let Ok(conn) = incoming.await else { return };
             let Ok(mut ch) = student_accept_with(&conn, auth).await else {
                 tracing::warn!("rejected unauthenticated peer {}", conn.remote_address());
                 return;
             };
+            live.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             // Files arrive on their own streams, accepted only after the tutor authenticated.
             let docs_root = documents_of(&inbox);
             let deploy_inbox = inbox.clone();
@@ -711,6 +714,11 @@ pub async fn run_with(cfg: Config, student: Arc<Student>, ready: Option<tokio::s
             student.stop_show();
             student.ex.stop_exhibit();
             student.ex.watch_screen(None);
+            // the last tutor is gone: a lock nobody can lift any more is lifted here
+            if live.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+                let st = student.clone();
+                let _ = tokio::task::spawn_blocking(move || st.ex.unlock()).await;
+            }
         });
     }
     Ok(())
@@ -870,6 +878,11 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         assert!(rec.stopped.load(Ordering::SeqCst), "Show kept running after the tutor disconnected");
+        for _ in 0..30 {
+            if rec.log.lock().unwrap().iter().any(|l| l == "unlock") { break; }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        assert!(rec.log.lock().unwrap().iter().any(|l| l == "unlock"), "lock kept after the last tutor disconnected");
         }
 
     #[tokio::test]
