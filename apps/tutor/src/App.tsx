@@ -243,7 +243,7 @@ export function App() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const n = Math.max(list.length, 1);
+  const n = list.length || 8; // empty: fit the 8 loading tiles, not one huge column
   let cols = 0;
   if (ui.autoFit && ui.view === "thumbs" && box.w > 0) {
     const W = box.w - PAD * 2, H = box.h - PAD * 2;

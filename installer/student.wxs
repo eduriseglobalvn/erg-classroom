@@ -81,7 +81,7 @@
           <File Id="AgentExe" Source="erg-student-agent.exe" KeyPath="yes">
             <!-- Start menu, all users. Saving needs "Run as administrator" (config.txt is admin-only). -->
             <Shortcut Id="ConfigLnk" Icon="ErgIcon.exe" Directory="ProgramMenuFolder" Name="ERG Classroom Student Configurator" Arguments="--config"
-                      Description="Room, network and security settings of this student computer" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+                      Description="Room, network and security settings of this student computer" WorkingDirectory="INSTALLFOLDER" />
           </File>
           <fw:FirewallException Id="FwAgent" Name="ERG Classroom (agent)" Program="[#AgentExe]" Protocol="udp" Profile="all" />
         </Component>
@@ -97,7 +97,7 @@
         <Component Id="TutorExe" Guid="*">
           <File Id="TutorExe" Source="erg-tutor.exe" KeyPath="yes">
             <Shortcut Id="TutorLnk" Icon="ErgIcon.exe" Directory="ProgramMenuFolder" Name="ERG Classroom Tutor" Description="Teacher console"
-                      WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+                      WorkingDirectory="INSTALLFOLDER" />
           </File>
           <fw:FirewallException Id="FwTutor" Name="ERG Classroom (tutor)" Program="[#TutorExe]" Protocol="udp" Profile="all" />
         </Component>

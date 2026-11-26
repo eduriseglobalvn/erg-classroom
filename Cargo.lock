@@ -887,7 +887,7 @@ dependencies = [
 
 [[package]]
 name = "erg-assess"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -895,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "erg-authpipe"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-net",
  "erg-privcmd",
@@ -906,7 +906,7 @@ dependencies = [
 
 [[package]]
 name = "erg-broadcast"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-capture",
  "erg-encode",
@@ -916,7 +916,7 @@ dependencies = [
 
 [[package]]
 name = "erg-capture"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "jpeg-encoder",
  "thiserror 2.0.21",
@@ -925,7 +925,7 @@ dependencies = [
 
 [[package]]
 name = "erg-deploy"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-proto",
  "hmac",
@@ -938,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "erg-encode"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "thiserror 2.0.21",
  "windows 0.61.3",
@@ -946,7 +946,7 @@ dependencies = [
 
 [[package]]
 name = "erg-gateway"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-net",
  "erg-proto",
@@ -960,7 +960,7 @@ dependencies = [
 
 [[package]]
 name = "erg-mp4"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-encode",
  "thiserror 2.0.21",
@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "erg-net"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-proto",
  "hmac",
@@ -988,7 +988,7 @@ dependencies = [
 
 [[package]]
 name = "erg-policy"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-proto",
  "sysinfo",
@@ -998,7 +998,7 @@ dependencies = [
 
 [[package]]
 name = "erg-privcmd"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-proto",
  "hmac",
@@ -1009,7 +1009,7 @@ dependencies = [
 
 [[package]]
 name = "erg-proto"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "postcard",
  "serde",
@@ -1018,7 +1018,7 @@ dependencies = [
 
 [[package]]
 name = "erg-show"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "aes-gcm",
  "rand 0.8.8",
@@ -1029,7 +1029,7 @@ dependencies = [
 
 [[package]]
 name = "erg-sim"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-net",
  "erg-proto",
@@ -1039,7 +1039,7 @@ dependencies = [
 
 [[package]]
 name = "erg-student"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-assess",
  "erg-authpipe",
@@ -1059,7 +1059,7 @@ dependencies = [
 
 [[package]]
 name = "erg-student-agent"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-assess",
  "erg-authpipe",
@@ -1079,7 +1079,7 @@ dependencies = [
 
 [[package]]
 name = "erg-student-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-assess",
  "erg-authpipe",
@@ -1097,7 +1097,7 @@ dependencies = [
 
 [[package]]
 name = "erg-student-watchdog"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-authpipe",
  "erg-deploy",
@@ -1111,7 +1111,7 @@ dependencies = [
 
 [[package]]
 name = "erg-sysops"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-proto",
  "windows 0.61.3",
@@ -1119,7 +1119,7 @@ dependencies = [
 
 [[package]]
 name = "erg-tutor"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "base64 0.22.1",
  "erg-assess",
@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "erg-tutor-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "erg-mp4",
  "erg-net",
