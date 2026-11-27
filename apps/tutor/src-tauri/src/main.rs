@@ -347,6 +347,7 @@ async fn start_roster(app: AppHandle, state: State<'_, AppState>) -> Result<(), 
     }
     *state.room_key.lock().map_err(|e| e.to_string())? = Some(key);
     let roster = Roster::start(DISCOVERY_PORT, key, get_room(app.clone())).map_err(|e| e.to_string())?;
+    roster.set_seats(read_license(&app).1);
     // rooms on other subnets: ERG_GATEWAY=host:47810 (or the first line of gateway.txt in the config folder)
     let gw = std::env::var("ERG_GATEWAY").ok().or_else(|| app.path().app_config_dir().ok().and_then(|d| std::fs::read_to_string(d.join("gateway.txt")).ok()));
     if let Some(a) = gw.and_then(|s| s.lines().next().and_then(|l| l.trim().parse().ok())) {
@@ -467,6 +468,9 @@ async fn start_roster(app: AppHandle, state: State<'_, AppState>) -> Result<(), 
                 }
                 RosterEvent::Student { id, event: erg_proto::Event::ShowStats { recv, lost, fec_fixed } } => {
                     let _ = app.emit("student-show-stats", serde_json::json!({ "id": id.to_string(), "recv": recv, "lost": lost, "fecFixed": fec_fixed }));
+                }
+                RosterEvent::Refused { waiting } => {
+                    let _ = app.emit("license-waiting", waiting);
                 }
                 RosterEvent::Student { .. } => {}
             }
@@ -601,6 +605,52 @@ async fn deploy(state: State<'_, AppState>, ids: Option<Vec<String>>, path: Stri
     Ok((got.len(), results.len() - got.len()))
 }
 
+/// What the licence allows. `seats` 0 = no limit; `state`: "open" (this build asks for no key), "ok", "none", "expired", "invalid".
+#[derive(serde::Serialize)]
+struct LicenseDto { state: &'static str, school: String, seats: u32, expires: u64, waiting: usize }
+
+fn now_s() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// The licence in `license.txt` of the config folder, and how many students it lets connect.
+fn read_license(app: &AppHandle) -> (LicenseDto, usize) {
+    use erg_license::{Error, TRIAL_SEATS};
+    let trial = |state, school, expires| (LicenseDto { state, school, seats: TRIAL_SEATS as u32, expires, waiting: 0 }, TRIAL_SEATS);
+    let Some(public) = erg_license::embedded_key() else {
+        return (LicenseDto { state: "open", school: String::new(), seats: 0, expires: 0, waiting: 0 }, usize::MAX);
+    };
+    let text = app.path().app_config_dir().ok().and_then(|d| std::fs::read_to_string(d.join("license.txt")).ok()).unwrap_or_default();
+    match erg_license::verify(&text, &public, now_s()) {
+        Ok(l) => (LicenseDto { state: "ok", school: l.school, seats: l.seats, expires: l.expires, waiting: 0 }, l.seats as usize),
+        Err(Error::Expired(l)) => trial("expired", l.school, l.expires),
+        Err(Error::Invalid) => trial(if text.trim().is_empty() { "none" } else { "invalid" }, String::new(), 0),
+    }
+}
+
+#[tauri::command]
+fn license_get(app: AppHandle, state: State<'_, AppState>) -> LicenseDto {
+    let mut dto = read_license(&app).0;
+    dto.waiting = state.roster.lock().ok().and_then(|r| r.as_ref().map(|r| r.refused())).unwrap_or(0);
+    dto
+}
+
+/// Checks a pasted licence key and, when it is good, saves it and lets the waiting students in.
+#[tauri::command]
+fn license_set(app: AppHandle, state: State<'_, AppState>, key: String) -> Result<LicenseDto, String> {
+    let public = erg_license::embedded_key().ok_or("open")?;
+    if key.len() > 4096 { return Err("invalid".into()); }
+    erg_license::verify(&key, &public, now_s()).map_err(|e| if e == erg_license::Error::Invalid { "invalid" } else { "expired" })?;
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("license.txt"), key.trim()).map_err(|e| e.to_string())?;
+    let (dto, seats) = read_license(&app);
+    if let Some(r) = state.roster.lock().map_err(|e| e.to_string())?.as_ref() {
+        r.set_seats(seats);
+    }
+    Ok(dto)
+}
+
 /// Version of this Tutor (the workspace version in Cargo.toml).
 #[tauri::command]
 fn app_version() -> &'static str {
@@ -661,7 +711,7 @@ fn main() {
             let _ = app;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_room, set_room, local_dir, start_recording, stop_recording, open_overlay, close_overlay, keyshow, start_roster, board_send, deploy, assistant_start, assistant_stop, grant_leader, revoke_leader, send_command, start_show, start_exhibit, stop_exhibit, stop_show, send_file, save_doc, load_doc, wake, attendance_csv, grade_test, make_student_paper, test_report_csv, write_text, set_collect_dir, load_text, save_snapshot, journal_html, journal_list, app_version, open_releases, open_folder])
+        .invoke_handler(tauri::generate_handler![get_room, set_room, local_dir, start_recording, stop_recording, open_overlay, close_overlay, keyshow, start_roster, board_send, deploy, assistant_start, assistant_stop, grant_leader, revoke_leader, send_command, start_show, start_exhibit, stop_exhibit, stop_show, send_file, save_doc, load_doc, wake, attendance_csv, grade_test, make_student_paper, test_report_csv, write_text, set_collect_dir, load_text, save_snapshot, journal_html, journal_list, app_version, open_releases, open_folder, license_get, license_set])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -30,6 +30,8 @@ pub enum RosterEvent {
     Student { id: Uuid, event: Event },
     /// A student pushed a file (Collect Work); saved at `path`.
     Collected { id: Uuid, path: std::path::PathBuf },
+    /// A student was not connected because every licensed seat is taken; `waiting` students are left out so far.
+    Refused { waiting: usize },
 }
 
 /// Largest unsent Show backlog per student; past it only keyframes get in (up to twice this).
@@ -79,6 +81,9 @@ pub struct Roster {
     last_priv_ms: Arc<Mutex<u64>>,
     /// Only students whose beacon carries this room are connected. None = every room.
     room: Arc<Mutex<Option<String>>>,
+    /// Most students connected at once (the licence). usize::MAX = no limit.
+    seats: Arc<std::sync::atomic::AtomicUsize>,
+    refused: Arc<Mutex<std::collections::HashSet<Uuid>>>,
 }
 
 impl Roster {
@@ -87,7 +92,7 @@ impl Roster {
     pub fn start(discovery_port: u16, key: RoomKey, room: Option<String>) -> std::io::Result<Self> {
         let sock = discovery::listener(discovery_port)?;
         let (events, _) = broadcast::channel(1024);
-        let me = Self { inner: Default::default(), events, collect_dir: Default::default(), fallback: Default::default(), key, last_priv_ms: Default::default(), room: Arc::new(Mutex::new(room)) };
+        let me = Self { inner: Default::default(), events, collect_dir: Default::default(), fallback: Default::default(), key, last_priv_ms: Default::default(), room: Arc::new(Mutex::new(room)), seats: Arc::new(usize::MAX.into()), refused: Default::default() };
         let r = me.clone();
         tokio::spawn(async move {
             let Ok(ep) = tutor_endpoint() else { return };
@@ -95,8 +100,7 @@ impl Roster {
                 if !r.in_room(&b.room) {
                     continue;
                 }
-                let known = r.inner.lock().expect("roster lock").contains_key(&b.student_id);
-                if known {
+                if !r.admit(b.student_id) {
                     continue;
                 }
                 let addr = SocketAddr::new(from.ip(), b.quic_port);
@@ -129,7 +133,7 @@ impl Roster {
                         if from != gateway { continue; } // only the gateway we subscribed to may introduce students
                         if let Ok(Some((erg_proto::GatewayMsg::Relayed { ip, beacon }, _))) = erg_proto::decode::<erg_proto::GatewayMsg>(&buf[..n]) {
                             if !r.in_room(&beacon.room) { continue; }
-                            if r.inner.lock().expect("roster lock").contains_key(&beacon.student_id) { continue; }
+                            if !r.admit(beacon.student_id) { continue; }
                             let addr = SocketAddr::new(std::net::Ipv4Addr::from(ip).into(), beacon.quic_port);
                             r.spawn_session(ep.clone(), addr, beacon, key);
                         }
@@ -137,6 +141,34 @@ impl Roster {
                 }
             }
         });
+    }
+
+    /// False for a student that is already connected, and for one more than the licence has seats for.
+    fn admit(&self, id: Uuid) -> bool {
+        let taken = {
+            let map = self.inner.lock().expect("roster lock");
+            if map.contains_key(&id) { return false; }
+            map.len()
+        };
+        let full = taken >= self.seats.load(std::sync::atomic::Ordering::Relaxed);
+        let mut refused = self.refused.lock().expect("refused lock");
+        if !full {
+            refused.remove(&id);
+        } else if refused.insert(id) {
+            let _ = self.events.send(RosterEvent::Refused { waiting: refused.len() });
+        }
+        !full
+    }
+
+    /// How many students may be connected at once. Students left out join on their next beacon when there is room.
+    pub fn set_seats(&self, seats: usize) {
+        self.seats.store(seats, std::sync::atomic::Ordering::Relaxed);
+        self.refused.lock().expect("refused lock").clear();
+    }
+
+    /// Students seen but not connected because the seats are taken.
+    pub fn refused(&self) -> usize {
+        self.refused.lock().expect("refused lock").len()
     }
 
     fn in_room(&self, room: &str) -> bool {
@@ -148,6 +180,7 @@ impl Roster {
     pub fn reset(&self, room: Option<String>) {
         *self.room.lock().expect("room lock") = room;
         self.fallback.lock().expect("fallback lock").clear();
+        self.refused.lock().expect("refused lock").clear();
         self.inner.lock().expect("roster lock").clear(); // dropping an entry closes its session
     }
 

@@ -1,6 +1,7 @@
 import { GuardDialog } from "./Guard";
 import { AppListDialog } from "./AppList";
 import { UpdateBar } from "./Update";
+import { License } from "./License";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Button, Checkbox, Dialog, DialogActions, DialogBody, DialogContent, DialogSurface, DialogTitle, Input, Menu, MenuTrigger,
@@ -202,7 +203,7 @@ export function App() {
   const [pane, setPane] = useState<"class" | "web" | "assess">("class");
   const [rulesOpen, setRulesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [extra, setExtra] = useState<null | "shortcuts" | "timetable" | "about" | "msg">(null);
+  const [extra, setExtra] = useState<null | "shortcuts" | "timetable" | "about" | "msg" | "license">(null);
   const [webAllowDlg, askWebAllow] = useAsk("Allow only these websites (comma separated)", "school.edu.vn, wikipedia.org", (t) => send({ SetWebPolicy: { mode: "AllowListOnly", list: items(t) } }));
   const [webBlockDlg, askWebBlock] = useAsk("Block these websites (comma separated)", "facebook.com, youtube.com", (t) => send({ SetWebPolicy: { mode: "BlockList", list: items(t) } }));
   const [appMode, setAppMode] = useState<null | "BlockList" | "AllowListOnly">(null);
@@ -211,7 +212,7 @@ export function App() {
     ask: { link: askLink, msg: () => setExtra("msg"), chat: askChat, poll: askPoll, webAllow: askWebAllow, webBlock: askWebBlock, guard: () => setGuardOpen(true), appBlock: () => setAppMode("BlockList"), appAllow: () => setAppMode("AllowListOnly"), work: () => setWorkOpen(true) },
     openWeb: () => setPane("web"),
     openAssess: () => setPane("assess"), settings: () => setSettingsOpen(true), rules: () => setRulesOpen(true),
-    shortcuts: () => setExtra("shortcuts"), timetable: () => setExtra("timetable"), about: () => setExtra("about"),
+    shortcuts: () => setExtra("shortcuts"), timetable: () => setExtra("timetable"), about: () => setExtra("about"), license: () => setExtra("license"),
     help: { count: helpCount, on: helpTab, toggle: () => { setHelpTab(!helpTab); lay.setFilter(null); } },
   });
 
@@ -413,6 +414,7 @@ export function App() {
           </div>
 
           <UpdateBar say={setNote} fail={setErr} />
+          <License open={extra === "license"} onOpen={() => setExtra("license")} onClose={() => setExtra(null)} say={setNote} />
           {showing && (
             <MessageBar intent="info" shape="square">
               <MessageBarBody>Showing the tutor screen to {target}.</MessageBarBody>

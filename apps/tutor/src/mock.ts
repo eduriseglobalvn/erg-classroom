@@ -44,6 +44,11 @@ export function install() {
         return null;
       }
       if (cmd === "app_version") return "0.2.0";
+      if (cmd === "license_get") return { state: "none", school: "", seats: 5, expires: 0, waiting: 3 };
+      if (cmd === "license_set") {
+        if (!String((args as { key: string }).key).startsWith("ERG1.")) throw "invalid";
+        return { state: "ok", school: "THCS Demo", seats: 40, expires: 1830000000, waiting: 0 };
+      }
       if (cmd === "open_releases") return null;
       if (cmd === "send_command") {
         const a = args as { ids: string[] | null; cmd: { StartTest?: { id: number } } };

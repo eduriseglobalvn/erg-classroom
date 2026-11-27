@@ -959,6 +959,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "erg-license"
+version = "0.3.2"
+dependencies = [
+ "base64 0.22.1",
+ "ring",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "erg-mp4"
 version = "0.3.2"
 dependencies = [
@@ -1127,6 +1137,7 @@ dependencies = [
  "erg-capture",
  "erg-deploy",
  "erg-encode",
+ "erg-license",
  "erg-net",
  "erg-proto",
  "erg-show",

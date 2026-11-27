@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/proto", "crates/net", "crates/sim", "crates/tutor-core", "crates/student-core", "crates/show", "crates/capture", "crates/encode", "crates/policy", "crates/assess", "crates/sysops", "crates/broadcast", "crates/gateway",
-  "crates/mp4", "crates/deploy", "crates/authpipe", "crates/privcmd", "apps/student-watchdog","apps/student-svc", "apps/tutor/src-tauri", "apps/student-agent/src-tauri"]
+  "crates/mp4", "crates/deploy", "crates/authpipe", "crates/privcmd", "crates/license", "apps/student-watchdog","apps/student-svc", "apps/tutor/src-tauri", "apps/student-agent/src-tauri"]
 
 [workspace.package]
 edition = "2021"

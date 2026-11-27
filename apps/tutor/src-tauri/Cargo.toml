@@ -21,6 +21,7 @@ erg-tutor-core = { path = "../../../crates/tutor-core" }
 erg-show = { path = "../../../crates/show" }
 erg-assess = { path = "../../../crates/assess" }
 erg-deploy = { path = "../../../crates/deploy" }
+erg-license = { path = "../../../crates/license" }
 
 rand = "0.8"
 

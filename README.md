@@ -81,6 +81,10 @@ Tutor tự tìm thấy 50 máy giả. Học sinh thật: đặt cùng Room Key (
 - Bảng tương tác là canvas nét vẽ tay, không phải Excalidraw. Trợ lý điện thoại là HTTP thuần trong LAN (token ngẫu nhiên, không TLS). Gateway chỉ UDP/LAN định tuyến, không xuyên NAT.
 - Giao diện mới (sơ đồ kéo-thả, soạn đề, bảng điểm đội, trưởng nhóm, i18n vi/en) chưa xem bằng mắt trên máy thật; một số chuỗi do Rust gửi chưa dịch.
 
+## Key bản quyền
+
+Tutor giới hạn số máy học sinh theo key bản quyền ký số (không cần Internet). Cách tạo khoá và tạo key cho trường: [docs/LICENSE-KEYS.md](docs/LICENSE-KEYS.md).
+
 ## Pháp lý
 
 Viết lại từ đầu (clean-room): không dùng mã, giao diện, tài nguyên hay tên thương mại của phần mềm khác (kể cả NetSupport); chỉ tham khảo danh mục tính năng chung. Giấy phép: **Apache-2.0** (xem [LICENSE](LICENSE)). Dùng trong mạng trường, với sự biết của học sinh và phụ huynh theo quy định của trường.

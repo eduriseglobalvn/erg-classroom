@@ -47,7 +47,7 @@ struct Lesson {
 
 /// The teacher switched the student toolbar off (Command::Toolbar(false)); lesson updates must not bring it back.
 static TOOLBAR_OFF: AtomicBool = AtomicBool::new(false);
-const BAR_H: f64 = 46.0;
+const BAR_H: f64 = 40.0;
 
 fn now_s() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
@@ -79,10 +79,10 @@ impl Agent {
             return;
         }
         if self.app.get_webview_window("toolbar").is_none() {
-            // across the top of the primary screen; the page folds it to a thin strip when the mouse leaves (toolbar_height)
+            // top centre of the primary screen; the page sizes it to its content and folds it to a thin strip when the mouse leaves (toolbar_height)
             let width = self.app.primary_monitor().ok().flatten().map_or(1280.0, |m| m.size().width as f64 / m.scale_factor());
             let r = WebviewWindowBuilder::new(&self.app, "toolbar", WebviewUrl::App("index.html?view=toolbar".into()))
-                .inner_size(width, BAR_H).position(0.0, 0.0).decorations(false).shadow(false).always_on_top(true)
+                .inner_size(480.0, BAR_H).position((width - 480.0) / 2.0, 0.0).decorations(false).shadow(false).always_on_top(true)
                 .skip_taskbar(true).resizable(false).focused(false).build();
             if let Err(e) = r {
                 eprintln!("cannot open toolbar: {e}");
@@ -460,8 +460,8 @@ fn chat_say(student: State<'_, Arc<Student>>, text: String) -> bool {
     student.say(&text)
 }
 
-/// Student toolbar: folded tab, bar, or bar with the objectives open. No width = the whole screen width;
-/// a width (the folded tab) is centred at the top of the screen.
+/// Student toolbar: folded tab, bar, or bar with the objectives open, as wide as the page asks and centred at the
+/// top of the screen. No width = the whole screen width.
 #[tauri::command]
 fn toolbar_height(window: tauri::WebviewWindow, height: f64, width: Option<f64>) {
     let Ok(Some(m)) = window.current_monitor() else { return };

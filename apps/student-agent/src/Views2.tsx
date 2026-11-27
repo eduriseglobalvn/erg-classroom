@@ -34,7 +34,17 @@ export function ToolbarView() {
   const [pin, setPin] = useState(false); // pinned: the bar stays open
   const foldSoon = (ms: number) => { clearTimeout(timer.current); if (!pin) timer.current = setTimeout(() => { setFolded(true); setOpen(false); }, ms); };
   useEffect(() => { invoke<[string, string, string]>("toolbar_info").then(setInfo); foldSoon(5000); return () => clearTimeout(timer.current); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
-  useEffect(() => { void invoke("toolbar_height", folded ? { height: 10, width: 140 } : { height: open ? 250 : 46 }); }, [folded, open]);
+  // the window is only as wide as the bar's content (never the whole screen) and stays centred
+  const bar = useRef<HTMLElement>(null);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setW(Math.ceil(el.getBoundingClientRect().width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [folded]);
+  useEffect(() => { void invoke("toolbar_height", folded ? { height: 10, width: 140 } : { height: open ? 250 : 40, width: Math.max(w, open ? 360 : 0) || 480 }); }, [folded, open, w]);
   // the teacher changing the lesson (new title, stars, leader) shows the bar for a moment
   useEffect(() => { setFolded(false); foldSoon(5000); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [l]);
   // shortcut: the lesson start time is not sent, so the bar is full at the moment this end time was first seen; send the start time to make it exact
@@ -47,20 +57,20 @@ export function ToolbarView() {
   const mut: React.CSSProperties = { color: "#5F5F5F", fontSize: 12 };
   const tag: React.CSSProperties = { display: "inline-flex", alignItems: "center", height: 20, padding: "0 8px", borderRadius: 10, background: "#EDEDED", fontSize: 12, whiteSpace: "nowrap" };
   const sep = <span style={{ width: 1, height: 24, background: "#E0E0E0", flex: "none" }} />;
-  const title = <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", maxWidth: 320 }} title={l.title}>{l.title || t("Tiết học")}</span>;
+  const title = <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180, whiteSpace: "nowrap" }} title={l.title}>{l.title || t("Tiết học")}</span>;
   return (
-    <header onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={() => foldSoon(1200)}
-      style={{ background: "#FBFBFB", color: "#1B1B1B", height: 46, boxSizing: "border-box", display: "flex", alignItems: "center", gap: 10, padding: "0 8px 0 12px", borderBottom: "1px solid #C8C8C8", fontSize: 13 }}>
+    <header ref={bar} onMouseEnter={() => clearTimeout(timer.current)} onMouseLeave={() => foldSoon(1200)}
+      style={{ background: "#FBFBFB", color: "#1B1B1B", width: "max-content", height: 40, boxSizing: "border-box", display: "flex", alignItems: "center", gap: 8, padding: "0 4px 0 10px", border: "1px solid #C8C8C8", borderTop: 0, fontSize: 13 }}>
       <Mark s={22} />
-      <div style={two}><span style={{ fontWeight: 600 }}>{info[2] || info[0]}</span><span style={mut}>{info[2] ? `${info[0]} · ` : ""}{t("phòng")} {info[1]}</span></div>
+      <span title={`${info[0]} · ${t("phòng")} ${info[1]}`} style={{ fontWeight: 600, whiteSpace: "nowrap", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>{info[2] || info[0]}</span>
       {sep}
       {l.objectives.length > 0 ? (
         <span style={{ position: "relative", display: "flex", alignItems: "center", height: "100%", minWidth: 0 }}>
-          <Button appearance="subtle" aria-expanded={open} icon={<ChevronDown16Regular />} iconPosition="after" onClick={() => setOpen(!open)} style={{ height: 36, minWidth: 0, background: open ? "#EFEFEF" : undefined }}>
-            <span style={{ ...two, alignItems: "flex-start", fontWeight: 400 }}>{title}<span style={mut}>{t("Mục tiêu")}</span></span>
+          <Button appearance="subtle" size="small" title={t("Mục tiêu")} aria-expanded={open} icon={<ChevronDown16Regular />} iconPosition="after" onClick={() => setOpen(!open)} style={{ height: 32, minWidth: 0, background: open ? "#EFEFEF" : undefined }}>
+            {title}
           </Button>
           {open && (
-            <div style={{ position: "absolute", left: 0, top: "calc(100% + 5px)", width: 340, maxHeight: 190, overflow: "auto", boxSizing: "border-box", padding: "12px 14px", background: "#fff", border: "1px solid #D6D6D6", borderRadius: 8, boxShadow: "0 8px 20px rgba(0,0,0,.14)" }}>
+            <div style={{ position: "fixed", left: 8, top: 45, width: 340, maxWidth: "calc(100vw - 16px)", maxHeight: 190, overflow: "auto", boxSizing: "border-box", padding: "12px 14px", background: "#fff", border: "1px solid #D6D6D6", borderRadius: 8, boxShadow: "0 8px 20px rgba(0,0,0,.14)" }}>
               <Text weight="semibold" block>{t("Mục tiêu")}</Text>
               {l.objectives.map((o, i) => <Text key={i} block style={{ marginTop: 4 }}>• {o}</Text>)}
             </div>
@@ -68,17 +78,13 @@ export function ToolbarView() {
         </span>
       ) : title}
       {left !== null && (
-        <div style={{ display: "flex", flexDirection: "column", width: 150, gap: 4, flex: "none" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-            <span style={mut}>{t("Còn lại")}</span>
-            <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", color: left < 60 ? "#C42B1C" : undefined }}>{fmt(left)}</span>
-          </div>
-          <div style={{ height: 4, borderRadius: 2, background: "#DADADA" }}>
+        <div title={t("Còn lại")} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 52, gap: 2, flex: "none" }}>
+          <span style={{ fontWeight: 600, fontSize: 12, lineHeight: "14px", fontVariantNumeric: "tabular-nums", color: left < 60 ? "#C42B1C" : undefined }}>{fmt(left)}</span>
+          <div style={{ height: 4, borderRadius: 2, background: "#DADADA", width: "100%" }}>
             <div style={{ width: `${Math.min(100, (left / span.current[1]) * 100)}%`, height: 4, borderRadius: 2, background: left < 60 ? "#C42B1C" : "#0E6F78" }} />
           </div>
         </div>
       )}
-      <span style={{ flex: 1 }} />
       {l.monitoring && <span title={t("Giáo viên đang theo dõi một số từ khoá khi bạn gõ phím")} style={{ ...tag, background: "#FFF4CE", color: "#6B4A00" }}>{t("👁 Theo dõi từ khoá")}</span>}
       {l.leader && (
         <>
@@ -89,15 +95,13 @@ export function ToolbarView() {
         </>
       )}
       {sep}
-      <Button icon={<HandRight24Regular />} style={{ borderColor: "#D9A29C", color: "#A32418" }} onClick={() => invoke("help_request", { text: "Em cần giúp đỡ" })}>{t("Xin trợ giúp")}</Button>
-      <Button icon={<Chat24Regular />} onClick={() => invoke("open_chat")}>Chat</Button>
-      <Button icon={<Folder24Regular />} title={t("Tệp giáo viên gửi cho bạn")} onClick={() => invoke("open_inbox")}>{t("Bài của tôi")}</Button>
+      <Button size="small" icon={<HandRight24Regular />} style={{ borderColor: "#D9A29C", color: "#A32418" }} onClick={() => invoke("help_request", { text: "Em cần giúp đỡ" })}>{t("Xin trợ giúp")}</Button>
+      <Button size="small" icon={<Chat24Regular />} title="Chat" aria-label="Chat" onClick={() => invoke("open_chat")} />
+      <Button size="small" icon={<Folder24Regular />} title={`${t("Bài của tôi")}: ${t("Tệp giáo viên gửi cho bạn")}`} aria-label={t("Bài của tôi")} onClick={() => invoke("open_inbox")} />
       {l.stars > 0 && <span title={t("Phần thưởng")} style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}><Star24Filled style={{ color: "#B7791F", width: 18, height: 18 }} />{l.stars}</span>}
       {sep}
-      <div style={{ ...two, alignItems: "flex-end", fontVariantNumeric: "tabular-nums" }}>
-        <span style={{ fontWeight: 600 }}>{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span><span style={mut}>{d.toLocaleDateString()}</span>
-      </div>
-      <Button appearance="subtle" aria-pressed={pin} aria-label={t("Ghim thanh công cụ")} title={t("Ghim thanh công cụ")} icon={pin ? <Pin20Filled /> : <Pin20Regular />} onClick={() => { clearTimeout(timer.current); setPin(!pin); }} />
+      <span title={d.toLocaleDateString()} style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+      <Button appearance="subtle" size="small" aria-pressed={pin} aria-label={t("Ghim thanh công cụ")} title={t("Ghim thanh công cụ")} icon={pin ? <Pin20Filled /> : <Pin20Regular />} onClick={() => { clearTimeout(timer.current); setPin(!pin); }} />
     </header>
   );
 }
